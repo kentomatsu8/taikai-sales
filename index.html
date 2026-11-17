@@ -339,7 +339,7 @@ nav button.on{color:var(--blue);font-weight:700}
     <button class="btn danger big" style="margin-top:8px" onclick="resetAll()">この端末のデータを全部消す</button>
     <div class="sub" style="margin-top:6px">未送信が残っているときは消せません。</div>
   </div>
-  <div class="sub" style="text-align:center">大会販売システム v1.7</div>
+  <div class="sub" style="text-align:center">大会販売システム v1.8</div>
 </section>
 </div>
 
@@ -751,6 +751,7 @@ async function refreshMaster(manual) {
     const data = await api('GET', { action: 'master', key: S.settings.key });
     if (!data.ok) throw Object.assign(new Error(data.error || '取得エラー'), { server: true });
     S.master = data.master; S.masterAt = Date.now();
+    pruneOld();
     // 選んでいたイベントが受付終了・削除されていたら、受付中の最初のイベントにする
     if (!curEvent() || !curEvent().open) {
       const first = S.master.events.find(e => e.open);
@@ -761,6 +762,17 @@ async function refreshMaster(manual) {
     if (manual) toast(`商品データを取得しました（${S.master.items.length}件）`);
   } catch (e) { handleNetError(e, manual); }
   renderAll();
+}
+/* スマホの保存容量対策（11/17）：シートに送り終わった記録のうち、
+   「受付が終わった大会」かつ「30日以上前」のものだけスマホから消す（シートには残っている）。
+   未送信・取消の未送信は絶対に消さない。 */
+function pruneOld() {
+  const open = new Set(S.master.events.filter(e => e.open).map(e => e.id));
+  const cutoff = Date.now() - 30 * 24 * 3600 * 1000;
+  const old = l => { const t = Date.parse(String(l.soldAt || '').replace(/\//g, '-').replace(' ', 'T')); return isFinite(t) && t < cutoff; };
+  const before = S.lines.length;
+  S.lines = S.lines.filter(l => !(l.synced && (l.status !== '取消' || l.cancelSynced) && !open.has(l.eventId) && old(l)));
+  if (S.lines.length !== before) console.log('古い送信済み記録を整理しました', before - S.lines.length);
 }
 function handleNetError(e, manual) {
   if (e.server || e.kind === 'bad') { netState = 'error'; netError = e.message; if (manual) toast('⚠ ' + e.message, 5000); }
