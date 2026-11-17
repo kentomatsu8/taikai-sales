@@ -1058,7 +1058,7 @@ function renderStatus() {
   else if (netState === 'slow') { b.className = 'badge b-wait'; b.textContent = '🟠 シート応答待ち（スマホに保存中）'; }
   else if (netState === 'error') { b.className = 'badge b-err'; b.textContent = '🔴 シート接続エラー'; }
   else if (netState === 'unset') { b.className = 'badge b-err'; b.textContent = '⚙ 未設定'; }
-  else { b.className = 'badge b-off'; b.textContent = '⏳ 確認中（販売できます）'; }
+  else { b.className = 'badge b-off'; b.textContent = '⏳ 確認中（販売可）'; }
   $('tPending').textContent = n;
 }
 function renderHeader() {
