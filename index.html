@@ -339,7 +339,7 @@ nav button.on{color:var(--blue);font-weight:700}
     <button class="btn danger big" style="margin-top:8px" onclick="resetAll()">この端末のデータを全部消す</button>
     <div class="sub" style="margin-top:6px">未送信が残っているときは消せません。</div>
   </div>
-  <div class="sub" style="text-align:center">大会販売システム v1.6</div>
+  <div class="sub" style="text-align:center">大会販売システム v1.7</div>
 </section>
 </div>
 
@@ -721,7 +721,7 @@ async function syncNow(manual) {
       if (op.type === 'campaign' && S.settings.campOverride && !S.ops.some(o => o !== op && o.type === 'campaign' && o.eventId === op.eventId && !acc.has(o.opId))) delete S.settings.campOverride[op.eventId];
     });
     S.ops = S.ops.filter(op => !acc.has(op.opId));
-    if (data.master) S.master = data.master;
+    if (data.master) { S.master = data.master; S.masterAt = Date.now(); }
     S.lastSync = nowStr();
     netState = 'online'; netError = '';
     save();
@@ -737,10 +737,20 @@ async function refreshMaster(manual) {
   if (S.settings.mode === 'offline' && manual) { toast('オフライン固定中は取得できません。「自動」にしてから押してください'); return; }
   if (S.settings.mode === 'offline') return;
   if (!S.settings.url || !S.settings.key) { netState = 'unset'; renderStatus(); if (manual) toast('「設定」でURLとパスコードを入れてください'); return; }
+  // 速さ対策（11/17）：商品データの取り直しは重いので、手動か前回から5分以上たったときだけ。
+  // それ以外（画面に戻ったときなど）は「つながるか」だけを軽く確認する。
+  if (!manual && S.masterAt && Date.now() - S.masterAt < 5 * 60 * 1000) {
+    try {
+      const pong = await api('GET', { action: 'ping', key: S.settings.key }, 15000);
+      if (!pong.ok) throw Object.assign(new Error(pong.error || '接続エラー'), { server: true });
+      netState = 'online'; netError = '';
+    } catch (e) { handleNetError(e, false); }
+    renderStatus(); return;
+  }
   try {
     const data = await api('GET', { action: 'master', key: S.settings.key });
     if (!data.ok) throw Object.assign(new Error(data.error || '取得エラー'), { server: true });
-    S.master = data.master;
+    S.master = data.master; S.masterAt = Date.now();
     // 選んでいたイベントが受付終了・削除されていたら、受付中の最初のイベントにする
     if (!curEvent() || !curEvent().open) {
       const first = S.master.events.find(e => e.open);
@@ -1048,7 +1058,7 @@ function renderStatus() {
   else if (netState === 'slow') { b.className = 'badge b-wait'; b.textContent = '🟠 シート応答待ち（スマホに保存中）'; }
   else if (netState === 'error') { b.className = 'badge b-err'; b.textContent = '🔴 シート接続エラー'; }
   else if (netState === 'unset') { b.className = 'badge b-err'; b.textContent = '⚙ 未設定'; }
-  else { b.className = 'badge b-off'; b.textContent = '… 確認中'; }
+  else { b.className = 'badge b-off'; b.textContent = '⏳ 確認中（販売できます）'; }
   $('tPending').textContent = n;
 }
 function renderHeader() {
@@ -1076,7 +1086,7 @@ function renderWarn() {
 }
 function renderSettingsInfo() {
   $('iMode').textContent = S.settings.mode === 'offline' ? 'オフライン固定' : '自動（オンライン優先）';
-  $('iState').textContent = { online: 'シートにつながっています', offline: navigator.onLine ? 'シートに届かない（スマホに保存中）' : '電波なし（スマホに保存中）', slow: 'シートの返事待ち（スマホに保存中）', error: 'エラー', unset: '未設定', unknown: '確認中' }[netState] || netState;
+  $('iState').textContent = { online: 'シートにつながっています', offline: navigator.onLine ? 'シートに届かない（スマホに保存中）' : '電波なし（スマホに保存中）', slow: 'シートの返事待ち（スマホに保存中）', error: 'エラー', unset: '未設定', unknown: '確認中（この間も販売・会計はできます）' }[netState] || netState;
   $('iPending').textContent = S.ops.length + '件';
   $('iLastSync').textContent = S.lastSync || '—';
   $('iFetched').textContent = S.master.fetchedAt || '未取得';
