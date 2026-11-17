@@ -339,7 +339,7 @@ nav button.on{color:var(--blue);font-weight:700}
     <button class="btn danger big" style="margin-top:8px" onclick="resetAll()">この端末のデータを全部消す</button>
     <div class="sub" style="margin-top:6px">未送信が残っているときは消せません。</div>
   </div>
-  <div class="sub" style="text-align:center">大会販売システム v1.5</div>
+  <div class="sub" style="text-align:center">大会販売システム v1.6</div>
 </section>
 </div>
 
@@ -668,11 +668,16 @@ function stripLine(l) {
 /* ================================================================
  *  シートとの通信（送れるときに送る）
  * ================================================================ */
-async function api(method, payload, timeoutMs = 20000) {
+async function api(method, payload, timeoutMs = 40000) {
+  // 失敗の種類を見分ける（11/17 ネットにつながっているのに「電波なし」と出る件の対策）
+  //   kind='net'     … 本当に通信できない（電波なし・Wi-Fi切れ）
+  //   kind='net2'    … ネットはあるのにGoogleに届かない（会社ネットの制限・URL間違いなど）
+  //   kind='timeout' … シート側の返事が遅くて時間切れ（Googleが混んでいる・起動直後など）
+  //   kind='bad'     … 返事は来たが中身がおかしい（デプロイ・承認・URLの設定ミスなど）
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), timeoutMs);
+  let res;
   try {
-    let res;
     if (method === 'GET') {
       const q = new URLSearchParams(payload).toString();
       res = await fetch(S.settings.url + '?' + q, { signal: ctl.signal });
@@ -680,12 +685,23 @@ async function api(method, payload, timeoutMs = 20000) {
       // text/plain で送る（Googleの仕組み上、これが一番確実）
       res = await fetch(S.settings.url, { method: 'POST', body: JSON.stringify(payload), signal: ctl.signal, headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
     }
-    const data = await res.json();
-    return data;
-  } finally { clearTimeout(t); }
+  } catch (e) {
+    clearTimeout(t);
+    const timeout = e.name === 'AbortError';
+    const err = new Error(timeout ? 'シートの返事が遅く、時間切れになりました' : '通信できませんでした');
+    err.kind = timeout ? 'timeout' : (navigator.onLine ? 'net2' : 'net');
+    throw err;
+  }
+  clearTimeout(t);
+  const text = await res.text();
+  try { return JSON.parse(text); }
+  catch (e) {
+    // GoogleのエラーページやログインページなどHTMLが返ってきた
+    const title = (text.match(/<title>([^<]*)<\/title>/i) || [])[1] || text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+    const err = new Error('シートから想定外の返事（HTTP ' + res.status + (title ? '：' + title : '') + '）。URLが「/exec」で終わるか、デプロイと承認を確認してください');
+    err.kind = 'bad'; throw err;
+  }
 }
-
-// 未送信をまとめて送る。manual=true のときは結果を画面に出す
 async function syncNow(manual) {
   if (S.settings.mode === 'offline') { if (manual) toast('オフライン固定中です。「自動」に切り替えると送ります'); renderStatus(); return; }
   if (!S.settings.url || !S.settings.key) { netState = 'unset'; renderStatus(); if (manual) toast('「設定」でシートのURLとパスコードを入れてください'); return; }
@@ -737,7 +753,9 @@ async function refreshMaster(manual) {
   renderAll();
 }
 function handleNetError(e, manual) {
-  if (e.server) { netState = 'error'; netError = e.message; if (manual) toast('⚠ ' + e.message, 4000); }
+  if (e.server || e.kind === 'bad') { netState = 'error'; netError = e.message; if (manual) toast('⚠ ' + e.message, 5000); }
+  else if (e.kind === 'timeout') { netState = 'slow'; netError = e.message + '。記録はスマホに保存済みで、あとで自動で送ります'; if (manual) toast('シートの返事が遅いため、スマホに保存しました。あとで自動で送ります', 3500); }
+  else if (e.kind === 'net2') { netState = 'offline'; netError = 'ネットにはつながっていますが、Googleのシートに届きませんでした（会社ネットの制限・URLの間違いの可能性）'; if (manual) toast('シートに届かないため、スマホに保存しました', 3500); }
   else { netState = 'offline'; netError = ''; if (manual) toast('電波がないため、スマホに保存しました。戻ったら自動で送ります', 3500); }
 }
 
@@ -1026,7 +1044,8 @@ function renderStatus() {
   const b = $('badge'), n = S.ops.length;
   if (S.settings.mode === 'offline') { b.className = 'badge b-off'; b.textContent = '⚫ オフライン固定'; }
   else if (netState === 'online') { b.className = n ? 'badge b-wait' : 'badge b-on'; b.textContent = n ? `🟠 送信待ち ${n}` : '🟢 オンライン'; }
-  else if (netState === 'offline') { b.className = 'badge b-wait'; b.textContent = '🟠 電波なし（スマホに保存中）'; }
+  else if (netState === 'offline') { b.className = 'badge b-wait'; b.textContent = navigator.onLine ? '🟠 シートに届かない（スマホに保存中）' : '🟠 電波なし（スマホに保存中）'; }
+  else if (netState === 'slow') { b.className = 'badge b-wait'; b.textContent = '🟠 シート応答待ち（スマホに保存中）'; }
   else if (netState === 'error') { b.className = 'badge b-err'; b.textContent = '🔴 シート接続エラー'; }
   else if (netState === 'unset') { b.className = 'badge b-err'; b.textContent = '⚙ 未設定'; }
   else { b.className = 'badge b-off'; b.textContent = '… 確認中'; }
@@ -1052,11 +1071,12 @@ function renderWarn() {
     if (age > 12) w.push(`商品データの取得から${Math.floor(age)}時間たっています。予定価格を変えた場合は電波のある所で「商品データを取得」を押してください。`);
   }
   if (netState === 'error' && netError) w.push('シート接続エラー：' + netError);
+  else if ((netState === 'offline' || netState === 'slow') && netError) w.push(netError);
   $('setupWarn').innerHTML = w.map(x => `<div class="warn">${esc(x)}</div>`).join('');
 }
 function renderSettingsInfo() {
   $('iMode').textContent = S.settings.mode === 'offline' ? 'オフライン固定' : '自動（オンライン優先）';
-  $('iState').textContent = { online: 'シートにつながっています', offline: '電波なし（スマホに保存中）', error: 'エラー', unset: '未設定', unknown: '確認中' }[netState] || netState;
+  $('iState').textContent = { online: 'シートにつながっています', offline: navigator.onLine ? 'シートに届かない（スマホに保存中）' : '電波なし（スマホに保存中）', slow: 'シートの返事待ち（スマホに保存中）', error: 'エラー', unset: '未設定', unknown: '確認中' }[netState] || netState;
   $('iPending').textContent = S.ops.length + '件';
   $('iLastSync').textContent = S.lastSync || '—';
   $('iFetched').textContent = S.master.fetchedAt || '未取得';
