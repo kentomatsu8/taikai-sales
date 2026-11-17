@@ -1,0 +1,1111 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>大会販売</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="大会販売">
+<meta name="theme-color" content="#14284b">
+<style>
+/* ============ 色・基本 ============ */
+:root{
+  --navy:#14284b; --bg:#f2f5fa; --card:#fff; --line:#dbe2ec; --text:#1b2533; --sub:#6b778a;
+  --red:#c0392b; --green:#1e8449; --orange:#d35400; --blue:#2563eb; --yellow:#fff6d6;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;font-size:16px;-webkit-text-size-adjust:100%}
+button{font:inherit;cursor:pointer}
+input,select,textarea{font:inherit;color:inherit}
+.wrap{max-width:640px;margin:0 auto;padding:0 12px 110px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:12px 0}
+h2{font-size:17px;margin:0 0 10px}
+.sub{color:var(--sub);font-size:13px}
+.row{display:flex;gap:8px;align-items:center}
+.grow{flex:1;min-width:0}
+.hide{display:none!important}
+.yen{font-variant-numeric:tabular-nums}
+
+/* ============ ヘッダー ============ */
+header{background:var(--navy);color:#fff;padding:calc(env(safe-area-inset-top) + 10px) 14px 12px;position:sticky;top:0;z-index:20}
+header .top{display:flex;align-items:center;gap:8px;max-width:640px;margin:0 auto}
+header .ttl{font-weight:700;font-size:18px;flex:1}
+.badge{border:0;border-radius:999px;padding:6px 12px;font-size:13px;font-weight:700;white-space:nowrap}
+.b-on{background:#d8f5e3;color:#0f5a2c}
+.b-wait{background:#ffe2c7;color:#8a3b00}
+.b-off{background:#3a4658;color:#fff}
+.b-err{background:#ffd6d2;color:#8e1b10}
+.evbar{max-width:640px;margin:8px auto 0;display:flex;gap:8px;align-items:center}
+.evbar select{flex:1;min-width:0;border-radius:10px;border:0;padding:8px;background:#22385f;color:#fff}
+.totals{max-width:640px;margin:8px auto 0;display:flex;gap:6px}
+.totals div{flex:1;background:#22385f;border-radius:10px;padding:6px 8px}
+.totals b{display:block;font-size:17px}
+.totals span{font-size:11px;opacity:.8}
+
+/* ============ 入力 ============ */
+.scan{display:flex;gap:8px}
+.scan input{flex:1;min-width:0;font-size:20px;padding:14px;border:2px solid #9fb3cf;border-radius:12px;background:#f8fbff}
+.scan input:focus{outline:none;border-color:var(--blue)}
+.btn{border:0;border-radius:12px;padding:12px 14px;font-weight:700;background:#e7ecf4;color:var(--text)}
+.btn.primary{background:var(--blue);color:#fff}
+.btn.big{width:100%;padding:16px;font-size:18px}
+.btn.danger{background:#fde4e1;color:var(--red)}
+.btn.small{padding:6px 10px;font-size:13px;border-radius:8px}
+.btn:disabled{opacity:.45}
+.field{display:block;margin:8px 0}
+.field span{display:block;font-size:13px;color:var(--sub);margin-bottom:4px}
+.field input,.field select,.field textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;background:#fff}
+
+/* ============ 読み取り結果（予定価格を大きく表示） ============ */
+.hit{border:2px solid var(--blue);background:#f3f7ff}
+.hit .nm{font-weight:700;font-size:17px}
+.hit .plan{font-size:40px;font-weight:800;color:var(--navy);line-height:1.1;margin:6px 0}
+.hit .plan small{font-size:14px;font-weight:600;color:var(--sub);margin-right:6px}
+.miss{border:2px solid var(--red);background:#fff4f2}
+
+/* ============ カート ============ */
+.cline{border-top:1px solid var(--line);padding:10px 0}
+.cline:first-child{border-top:0}
+.cline .nm{font-weight:700}
+.cline .grid{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-top:8px;align-items:end}
+.cline label{font-size:12px;color:var(--sub);display:block}
+.cline input{width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.cline input.changed{background:var(--yellow);border-color:#e2b100}
+.cline input.need{border:2px solid var(--red);background:#fff4f2}
+.qty{display:flex;align-items:center;gap:6px}
+.qty button{width:34px;height:34px;border-radius:8px;border:1px solid var(--line);background:#fff;font-size:18px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:4px 10px;font-size:12px}
+.sum{display:flex;justify-content:space-between;margin:4px 0}
+.sum.total{font-size:24px;font-weight:800}
+.pay{display:flex;gap:8px;margin:10px 0}
+.pay button{flex:1;padding:14px;border-radius:12px;border:2px solid var(--line);background:#fff;font-weight:700;font-size:17px}
+.pay button.on{border-color:var(--blue);background:#eaf1ff;color:var(--blue)}
+.quick{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.change{font-size:22px;font-weight:800;color:var(--green)}
+
+/* ============ 履歴・精算 ============ */
+.sale{border-top:1px solid var(--line);padding:10px 0}
+.sale:first-child{border-top:0}
+.tag{display:inline-block;font-size:11px;border-radius:6px;padding:2px 6px;margin-left:4px}
+.t-ok{background:#d8f5e3;color:#0f5a2c}
+.t-wait{background:#ffe2c7;color:#8a3b00}
+.t-cancel{background:#eee;color:#888;text-decoration:line-through}
+.t-cash{background:#e7f0ff;color:#1d4ed8}
+.t-air{background:#f3e8ff;color:#7e22ce}
+.lineitem{display:flex;justify-content:space-between;font-size:14px;margin-top:4px;gap:6px}
+.lineitem.cancel{color:#999;text-decoration:line-through}
+table.t{width:100%;border-collapse:collapse;font-size:15px}
+table.t td{padding:6px 2px;border-bottom:1px solid var(--line)}
+table.t td:last-child{text-align:right;font-weight:700}
+.diff0{color:var(--green);font-weight:800}
+.diffx{color:var(--red);font-weight:800}
+.denoms{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}
+.denoms label{display:flex;align-items:center;gap:6px;font-size:14px}
+.denoms input{width:52px;padding:6px;border:1px solid var(--line);border-radius:8px}
+
+/* ============ 下のタブ ============ */
+nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom);z-index:20}
+nav button{flex:1;border:0;background:none;padding:10px 0 12px;font-size:12px;color:var(--sub)}
+nav button b{display:block;font-size:20px}
+nav button.on{color:var(--blue);font-weight:700}
+.toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#1b2533;color:#fff;padding:12px 18px;border-radius:12px;font-size:15px;z-index:50;max-width:90%;text-align:center}
+.warn{background:#fff4e5;border:1px solid #f5c27a;border-radius:10px;padding:10px;font-size:14px;margin:8px 0}
+.err{background:#fff0ee;border:1px solid #f0a59b;border-radius:10px;padding:10px;font-size:14px;margin:8px 0;color:#8e1b10}
+#reader{width:100%;margin-top:10px;border-radius:12px;overflow:hidden}
+</style>
+</head>
+<body>
+
+<!-- ================= ヘッダー：接続状態・イベント・合計 ================= -->
+<header>
+  <div class="top">
+    <div class="ttl">大会販売</div>
+    <!-- 押すと「自動（オンライン優先）」⇔「オフライン固定」を切り替え -->
+    <button id="badge" class="badge b-off" onclick="toggleMode()">…</button>
+  </div>
+  <div class="evbar">
+    <select id="evSel" onchange="selectEvent(this.value)"></select>
+  </div>
+  <div class="totals">
+    <div><span>イベント売上（税込）</span><b id="tAmount" class="yen">¥0</b></div>
+    <div><span>販売数量</span><b id="tQty">0</b></div>
+    <div><span>未送信</span><b id="tPending">0</b></div>
+  </div>
+</header>
+
+<div class="wrap">
+
+<!-- ================= 販売タブ ================= -->
+<section id="tab-sale">
+  <div id="setupWarn"></div>
+  <!-- 大会が複数同時に受付中のとき：どの大会で売るか選ぶ -->
+  <div class="card hide" id="evPick" style="border:2px solid var(--orange)">
+    <h2>どの大会の販売ですか？</h2>
+    <div class="sub">受付中の大会が複数あります。今いる大会を選んでください（あとで上の欄から変更できます）。</div>
+    <div id="evPickList" style="margin-top:8px;display:grid;gap:8px"></div>
+  </div>
+  <!-- 初回だけ：名前を入れたらすぐ販売開始 -->
+  <div class="card hide" id="nameCard" style="border:2px solid var(--blue)">
+    <h2>はじめに、あなたの名前を入れてください</h2>
+    <div class="sub">販売記録の「担当者」に入ります。次回からは聞きません。</div>
+    <form class="scan" style="margin-top:8px" onsubmit="event.preventDefault();saveName();">
+      <input id="firstName" placeholder="例：中原" autocomplete="name">
+      <button class="btn primary" type="submit">開始</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>商品を読み取る <span class="sub" id="saleEvName"></span></h2>
+    <form class="scan" onsubmit="event.preventDefault();onScan();">
+      <input id="scanInput" inputmode="numeric" autocomplete="off" placeholder="バーコード（読み取り・手入力）">
+      <button class="btn primary" type="submit">追加</button>
+    </form>
+    <div class="row" style="margin-top:8px">
+      <button class="btn grow" type="button" onclick="toggleCamera()" id="camBtn">📷 カメラで読み取る</button>
+    </div>
+    <div id="reader" class="hide"></div>
+  </div>
+
+  <!-- 読み取った商品（販売予定価格を大きく表示） -->
+  <div id="hitBox"></div>
+
+  <!-- カート -->
+  <div class="card" id="cartCard">
+    <h2>今回の会計 <span class="sub" id="cartCount"></span></h2>
+    <div id="cart"><div class="sub">商品を読み取るとここに並びます。</div></div>
+    <div id="cartFoot" class="hide">
+      <hr style="border:0;border-top:1px solid var(--line);margin:10px 0">
+      <div class="sum"><span>予定価格の合計</span><span id="sPlan" class="yen"></span></div>
+      <div class="sum"><span>値引（商品ごと）</span><span id="sDisc" class="yen"></span></div>
+      <!-- キャンペーン割引（例：1万円以上で10%OFF）。イベントシートで設定した大会だけ表示 -->
+      <div id="campBox" class="hide" style="margin:8px 0">
+        <button id="campBtn" class="btn big" onclick="toggleCampaign()"></button>
+        <div class="sub" id="campNote" style="margin-top:4px"></div>
+        <div class="sum" id="campRow"><span id="campLabel"></span><span id="campDisc" class="yen"></span></div>
+      </div>
+      <div class="sum total"><span>お会計</span><span id="sTotal" class="yen"></span></div>
+
+      <div class="pay">
+        <button id="payCash" onclick="setPay('現金')">💴 現金</button>
+        <button id="payAir" onclick="setPay('エアペイ')">💳 エアペイ</button>
+      </div>
+      <div class="sub" style="margin-top:-4px">エアペイ＝カード・PayPay・交通系など</div>
+
+      <div id="cashBox" class="hide">
+        <label class="field"><span>お預かり金額</span>
+          <input id="received" inputmode="numeric" oninput="renderChange()" placeholder="例：10000"></label>
+        <div class="quick">
+          <button class="btn small" onclick="setReceived('just')">ちょうど</button>
+          <button class="btn small" onclick="setReceived(1000)">¥1,000</button>
+          <button class="btn small" onclick="setReceived(5000)">¥5,000</button>
+          <button class="btn small" onclick="setReceived(10000)">¥10,000</button>
+        </div>
+        <div style="margin-top:8px">おつり：<span id="change" class="change yen">—</span></div>
+      </div>
+
+      <div id="checkoutErr"></div>
+      <button class="btn primary big" style="margin-top:12px" onclick="checkout()">会計を確定する</button>
+      <button class="btn big" style="margin-top:8px" onclick="clearCart()">会計をやめる（カートを空にする）</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 履歴タブ ================= -->
+<section id="tab-history" class="hide">
+  <div class="card">
+    <h2>販売履歴（この端末）</h2>
+    <div class="sub">間違えたときは、明細の「取消」を押します（シートの行は消えず「取消」になります）。</div>
+    <div id="histList" style="margin-top:8px"></div>
+  </div>
+</section>
+
+<!-- ================= 精算タブ ================= -->
+<section id="tab-settle" class="hide">
+  <div class="card">
+    <h2>精算（受け取ったお金と記録の照合）</h2>
+    <div class="pay" style="margin-top:0">
+      <button id="scopeDev" onclick="setScope('device')">この端末だけ</button>
+      <button id="scopeAll" onclick="setScope('all')">イベント全体</button>
+    </div>
+    <div id="scopeNote" class="sub"></div>
+    <table class="t" style="margin-top:8px">
+      <tr><td>会計数</td><td id="xCount"></td></tr>
+      <tr><td>販売点数</td><td id="xQty"></td></tr>
+      <tr><td>現金売上（システム）</td><td id="xCash" class="yen"></td></tr>
+      <tr><td>エアペイ売上（システム）</td><td id="xAir" class="yen"></td></tr>
+      <tr><td>値引合計</td><td id="xDisc" class="yen"></td></tr>
+      <tr><td>売上合計</td><td id="xTotal" class="yen"></td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>💴 現金の照合</h2>
+    <label class="field"><span>釣銭準備金（最初にレジに入れたお金）</span>
+      <input id="float" inputmode="numeric" oninput="renderSettle()" placeholder="例：30000"></label>
+    <div class="sub" style="margin:6px 0">数えた枚数を入れると自動で合計します（合計を直接入れてもOK）。</div>
+    <div class="denoms" id="denoms"></div>
+    <label class="field"><span>数えた現金の合計</span>
+      <input id="counted" inputmode="numeric" oninput="countedManual=true;renderSettle()"></label>
+    <div>現金差額：<span id="cashDiff">—</span></div>
+    <div class="sub">数えた現金 − 釣銭準備金 − 現金売上。0なら一致です。</div>
+  </div>
+
+  <div class="card">
+    <h2>💳 エアペイの照合</h2>
+    <label class="field"><span>エアペイ（Airペイ）の売上合計（アプリ・端末の集計を見て入力）</span>
+      <input id="airTotal" inputmode="numeric" oninput="renderSettle()"></label>
+    <div>エアペイ差額：<span id="airDiff">—</span></div>
+  </div>
+
+  <div class="card">
+    <label class="field"><span>メモ（差額の理由など）</span><textarea id="settleMemo" rows="2"></textarea></label>
+    <button class="btn primary big" onclick="saveSettle()">精算を記録する（シートの「精算」へ）</button>
+    <button class="btn big" style="margin-top:8px" onclick="exportCSV(true)">この端末の販売記録をCSVで保存</button>
+    <div id="settleLog" style="margin-top:8px"></div>
+  </div>
+</section>
+
+<!-- ================= 設定タブ ================= -->
+<section id="tab-settings" class="hide">
+  <div class="card">
+    <h2>接続の状態</h2>
+    <table class="t">
+      <tr><td>接続モード</td><td id="iMode"></td></tr>
+      <tr><td>今の状態</td><td id="iState"></td></tr>
+      <tr><td>未送信</td><td id="iPending"></td></tr>
+      <tr><td>最後にシートへ送信</td><td id="iLastSync"></td></tr>
+      <tr><td>商品データの取得日時</td><td id="iFetched"></td></tr>
+      <tr><td>商品データ件数</td><td id="iItems"></td></tr>
+    </table>
+    <div id="iErr"></div>
+    <div class="row" style="margin-top:10px;flex-wrap:wrap">
+      <button class="btn primary" onclick="refreshMaster(true)">商品データを取得</button>
+      <button class="btn" onclick="syncNow(true)">未送信を今すぐ送る</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>🎁 キャンペーン設定（今の大会）</h2>
+    <div class="sub" id="campNow"></div>
+    <div class="row" style="margin-top:8px">
+      <label class="field grow"><span>割引率（%）</span><input id="cfgCampRate" inputmode="numeric" placeholder="例：10"></label>
+      <label class="field grow"><span>条件（○円以上）</span><input id="cfgCampMin" inputmode="numeric" placeholder="例：10000"></label>
+    </div>
+    <label class="field"><span>変更の理由（必須）</span><input id="cfgCampReason" placeholder="例：本部の指示で条件を8,000円に変更"></label>
+    <div class="row" style="flex-wrap:wrap">
+      <button class="btn primary" onclick="changeCampaign(false)">この内容に変更</button>
+      <button class="btn danger" onclick="changeCampaign(true)">キャンペーンをやめる</button>
+    </div>
+    <div class="sub" style="margin-top:6px">変更はこの大会の全スタッフに反映されます（電波が戻り次第。シートの「イベント」K・L列が書き換わり、「設定変更履歴」に誰がいつ変えたか残ります）。</div>
+  </div>
+
+  <div class="card">
+    <h2>接続モード</h2>
+    <div class="pay" style="margin-top:0">
+      <button id="mAuto" onclick="setMode('auto')">自動（オンライン優先）</button>
+      <button id="mOff" onclick="setMode('offline')">オフライン固定</button>
+    </div>
+    <div class="sub">
+      自動：電波があればすぐシートへ送り、電波が切れたらスマホに貯めて、戻ったら自動で送ります。<br>
+      オフライン固定：シートへは送らずスマホに貯めます（電波が無い会場向け）。「自動」に戻すとまとめて送ります。<br>
+      この設定はスマホに保存され、翌日アプリを開いても続きから使えます。
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>スタッフ用リンク（管理者用）</h2>
+    <div class="sub">URLとパスコードを保存したあとに押すと、スタッフに送るリンクができます。スタッフはこのリンクを開くだけで設定が終わります。<b>パスコード入りなので、販売スタッフ以外には送らないでください。</b></div>
+    <label style="display:block;margin-top:8px;font-size:14px"><input type="checkbox" id="linkWithEvent" checked> 今選んでいる大会に決めたリンクにする（スタッフは大会を選ばずに始められます）</label>
+    <button class="btn" style="margin-top:8px" onclick="makeStaffLink()">スタッフ用リンクを作る</button>
+    <textarea id="staffLink" class="hide" rows="4" style="width:100%;margin-top:8px;padding:8px;border:1px solid var(--line);border-radius:8px" readonly></textarea>
+  </div>
+
+  <div class="card">
+    <h2>基本設定</h2>
+    <label class="field"><span>担当者名（販売履歴の「操作ユーザー」に入ります）</span><input id="cfgUser" placeholder="例：中原"></label>
+    <label class="field"><span>端末名（どのスマホで売ったか分かるように）</span><input id="cfgDevice" placeholder="例：レジ1"></label>
+    <label class="field"><span>シートのURL（Apps Scriptのウェブアプリ…/exec）</span><input id="cfgUrl" placeholder="https://script.google.com/macros/s/…/exec"></label>
+    <label class="field"><span>パスコード</span><input id="cfgKey" type="password"></label>
+    <button class="btn primary big" onclick="saveSettings()">保存して接続テスト</button>
+  </div>
+
+  <div class="card">
+    <h2>データ</h2>
+    <button class="btn big" onclick="exportCSV(false)">この端末の全販売記録をCSVで保存</button>
+    <button class="btn danger big" style="margin-top:8px" onclick="resetAll()">この端末のデータを全部消す</button>
+    <div class="sub" style="margin-top:6px">未送信が残っているときは消せません。</div>
+  </div>
+  <div class="sub" style="text-align:center">大会販売システム v1.4</div>
+</section>
+</div>
+
+<nav>
+  <button id="nav-sale" class="on" onclick="showTab('sale')"><b>🛒</b>販売</button>
+  <button id="nav-history" onclick="showTab('history')"><b>🕘</b>履歴</button>
+  <button id="nav-settle" onclick="showTab('settle')"><b>🧮</b>精算</button>
+  <button id="nav-settings" onclick="showTab('settings')"><b>⚙️</b>設定</button>
+</nav>
+
+<script>
+/* ================================================================
+ *  大会販売システム（スマホアプリ側）
+ *  ・記録はまずスマホの中に保存 → 送れるときにシートへ送る
+ *  ・だから電波が切れても、アプリを閉じても、翌日でも記録は消えない
+ * ================================================================ */
+
+const STORE_KEY = 'taikai_sales_v1';     // スマホ内の保存場所の名前
+const QR_LIB = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+
+// ---------- 保存データ（スマホ内） ----------
+let S = {
+  settings: { url: '', key: '', user: '', device: '', mode: 'auto', eventId: '', scope: 'device', floats: {} },
+  master: { events: [], items: [], fetchedAt: '' },  // シートから取ったイベント・商品
+  lines: [],      // 販売明細（この端末で売ったもの）
+  ops: [],        // シートへ送る予定の操作（未送信）
+  settles: [],    // 精算の記録
+  lastSync: ''
+};
+// ---------- 画面だけの一時データ ----------
+let cart = [];            // 今回の会計
+let pay = '';             // 支払方法
+let netState = 'unknown'; // online / offline / error / unset
+let netError = '';
+let syncing = false;
+let countedManual = false;
+
+/* ---------- 保存・読み込み ---------- */
+function load() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) {
+      const d = JSON.parse(raw);
+      S = Object.assign(S, d);
+      S.settings = Object.assign({ url: '', key: '', user: '', device: '', mode: 'auto', eventId: '', scope: 'device', floats: {} }, d.settings || {});
+    }
+  } catch (e) { console.warn('読み込み失敗', e); }
+}
+function save() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); }
+  catch (e) { toast('⚠ スマホへの保存に失敗しました。CSVで保存してください'); }
+}
+
+/* ---------- 小さな道具 ---------- */
+const $ = id => document.getElementById(id);
+const yen = n => '¥' + Math.round(Number(n) || 0).toLocaleString('ja-JP');
+const num = v => { const n = Number(String(v ?? '').replace(/[^\d.-]/g, '')); return isFinite(n) ? n : 0; };
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now() + '-' + Math.random().toString(16).slice(2));
+function nowStr() {
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+let toastTimer;
+function toast(msg, ms = 2500) {
+  let t = document.querySelector('.toast');
+  if (!t) { t = document.createElement('div'); t.className = 'toast'; document.body.appendChild(t); }
+  t.textContent = msg; t.style.display = 'block';
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.style.display = 'none', ms);
+}
+// バーコードの表記ゆれをそろえる（空白除去・全角数字→半角）
+function normBarcode(s) {
+  return String(s || '').replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/\s/g, '').trim();
+}
+
+/* ================================================================
+ *  イベント・商品
+ * ================================================================ */
+function curEvent() { return S.master.events.find(e => e.id === S.settings.eventId) || null; }
+function findItem(barcode) {
+  return S.master.items.find(i => i.eventId === S.settings.eventId && i.barcode === barcode) || null;
+}
+// 残数＝シートの残数 − この端末の未送信の販売 ＋ 未送信の取消
+function remainOf(item) {
+  let r = item.remain;
+  S.lines.forEach(l => {
+    if (l.eventId !== item.eventId || l.barcode !== item.barcode) return;
+    if (!l.synced && l.status === '有効') r -= l.qty;
+    if (l.synced && l.status === '取消' && !l.cancelSynced) r += l.qty;
+  });
+  return r;
+}
+// ヘッダーのイベント合計（シートの値＋この端末の未送信分）
+function eventTotals() {
+  const ev = curEvent();
+  let amount = ev ? ev.amount : 0, qty = ev ? ev.qty : 0;
+  S.lines.forEach(l => {
+    if (l.eventId !== S.settings.eventId) return;
+    if (!l.synced && l.status === '有効') { amount += l.price * l.qty; qty += l.qty; }
+    if (l.synced && l.status === '取消' && !l.cancelSynced) { amount -= l.price * l.qty; qty -= l.qty; }
+  });
+  return { amount, qty };
+}
+// 受付中の大会が2つ以上あり、まだこの端末で選んでいないとき true
+function openSig() { return S.master.events.filter(e => e.open).map(e => e.id).sort().join(','); }
+function needEventPick() {
+  const open = S.master.events.filter(e => e.open);
+  if (open.length < 2) return false;
+  // 受付中の大会の組み合わせが変わったら選び直してもらう（前の大会のまま売る間違いを防ぐ）
+  if (S.settings.eventPickedFor === 'link:' + S.settings.eventId && open.some(e => e.id === S.settings.eventId)) return false;
+  return S.settings.eventPickedFor !== openSig() || !open.some(e => e.id === S.settings.eventId);
+}
+function pickEvent(id) {
+  S.settings.eventId = id; S.settings.eventPickedFor = openSig(); save();
+  const ev = curEvent(); toast((ev ? ev.name : '') + ' で販売します'); renderAll(); focusScan();
+}
+function renderEventPick() {
+  const show = needEventPick();
+  $('evPick').classList.toggle('hide', !show);
+  if (!show) return;
+  $('evPickList').innerHTML = S.master.events.filter(e => e.open).map(e =>
+    `<button class="btn big" style="text-align:left" onclick="pickEvent('${esc(e.id)}')">${esc(e.name)}<br><span class="sub">${esc(e.date)}（${esc(e.id)}）</span></button>`).join('');
+}
+function selectEvent(id) {
+  if (cart.length && id !== S.settings.eventId) {
+    toast('会計中の商品があります。先に確定するか空にしてください');
+    $('evSel').value = S.settings.eventId; return;
+  }
+  S.settings.eventId = id; S.settings.eventPickedFor = openSig(); save(); renderAll();
+}
+
+/* ================================================================
+ *  読み取り → カート
+ * ================================================================ */
+function onScan(code) {
+  const bc = normBarcode(code ?? $('scanInput').value);
+  $('scanInput').value = '';
+  if (!bc) return;
+  if (!curEvent() || needEventPick()) { showMiss(bc, '大会が選ばれていません。上の「どの大会の販売ですか？」で選んでください。', false); return; }
+  if (curEvent() && !curEvent().open) { showMiss(bc, 'このイベントは販売受付が終了しています（シートの「販売受付」のチェック）。', false); return; }
+  const item = findItem(bc);
+  if (!item) { showMiss(bc, 'このイベントの商品リストにありません。', true); return; }
+  addToCart({ barcode: bc, code: item.code, name: item.name, plan: item.plan });
+  showHit(item);
+}
+function addToCart(p) {
+  // 同じ商品・同じ価格・備考なしの行があれば数量を+1、なければ新しい行
+  const same = cart.find(c => c.barcode === p.barcode && c.price === p.plan && !c.note && c.plan === p.plan);
+  if (same) same.qty += 1;
+  else cart.push({ key: uid(), barcode: p.barcode, code: p.code || '', name: p.name, plan: p.plan, price: p.plan, qty: 1, note: p.note || '' });
+  renderCart();
+  focusScan();
+}
+function showHit(item) {
+  const rem = remainOf(item) - cart.filter(c => c.barcode === item.barcode).reduce((a, c) => a + c.qty, 0);
+  $('hitBox').innerHTML = `<div class="card hit">
+    <div class="nm">${esc(item.name)}</div>
+    <div class="sub">${esc(item.code)}　JAN ${esc(item.barcode)}</div>
+    <div class="plan yen"><small>販売予定価格</small>${yen(item.plan)}</div>
+    <div class="sub">会計後の残り（目安）：${rem}点${rem < 0 ? ' ⚠ 持込数を超えています' : ''}</div>
+  </div>`;
+}
+function showMiss(bc, msg, canAdd) {
+  $('hitBox').innerHTML = `<div class="card miss">
+    <div style="font-weight:700;color:var(--red)">${esc(msg)}</div>
+    <div class="sub">バーコード：${esc(bc)}</div>
+    ${canAdd ? `<div style="margin-top:8px">
+      <label class="field"><span>商品名</span><input id="mName" placeholder="例：Tシャツ L"></label>
+      <label class="field"><span>販売価格（税込）</span><input id="mPrice" inputmode="numeric"></label>
+      <button class="btn primary" onclick="addManual('${esc(bc)}')">この内容でカートに追加</button>
+      <div class="sub" style="margin-top:4px">備考に「リスト外商品」と入ります。後でシートの商品登録も確認してください。</div>
+    </div>` : ''}
+  </div>`;
+}
+function addManual(bc) {
+  const name = $('mName').value.trim(), price = num($('mPrice').value);
+  if (!name) { toast('商品名を入れてください'); return; }
+  cart.push({ key: uid(), barcode: bc, code: '', name, plan: price, price, qty: 1, note: 'リスト外商品' });
+  $('hitBox').innerHTML = '';
+  renderCart(); focusScan();
+}
+function focusScan() { setTimeout(() => { if ($('tab-sale').classList.contains('hide')) return; (S.settings.user || !S.settings.url ? $('scanInput') : $('firstName')).focus(); }, 50); }
+
+/* ---------- カートの表示と編集 ---------- */
+const NOTE_CHIPS = [
+  { t: '汚れ・傷のため値下げ' },
+  { t: '提供（0円）', zero: true },
+  { t: 'サービス', zero: true },
+  { t: 'セット価格' },
+  { t: '値下げ（その他）' }
+];
+/* ---------- キャンペーン割引 ----------
+ * 会計の全商品に同じ割引率をかける（例：10%OFF → 各商品の単価×0.9）。
+ * 割引後の単価は10円未満を切り捨て（例：2,585円×0.9＝2,326.5円 → 2,320円）。
+ * 10円単位（例：3,150円の50円）は切り捨てない。 */
+let campaignOn = false;
+function campaign() {
+  const ev = curEvent();
+  if (!ev) return null;
+  // スタッフが変更してまだシートに届いていない設定があれば、そちらを使う
+  const ov = (S.settings.campOverride || {})[ev.id];
+  if (ov) return ov.rate > 0 ? { rate: ov.rate, min: ov.min || 0 } : null;
+  return ev.campRate > 0 ? { rate: ev.campRate, min: ev.campMin || 0 } : null;
+}
+function effPrice(c) {
+  const cp = campaign();
+  return campaignOn && cp ? Math.floor(Math.round(c.price * (1 - cp.rate) * 100) / 1000) * 10 : c.price;
+}
+const pctText = r => Math.round(r * 100) + '%';
+function toggleCampaign() { campaignOn = !campaignOn; renderCart(); }
+function renderCampaign(baseTotal) {
+  const cp = campaign();
+  $('campBox').classList.toggle('hide', !cp);
+  if (!cp) { campaignOn = false; return; }
+  const ok = baseTotal >= cp.min;
+  const cond = cp.min ? yen(cp.min) + '以上で' : '';
+  $('campBtn').textContent = campaignOn ? `✅ キャンペーン ${pctText(cp.rate)}OFF 適用中（押すと解除）` : `🎁 キャンペーン ${pctText(cp.rate)}OFF を適用する`;
+  $('campBtn').className = 'btn big' + (campaignOn ? ' primary' : '');
+  $('campNote').innerHTML = `${cond}${pctText(cp.rate)}OFF（全商品の単価に割引）` + (ok ? ' <b style="color:var(--green)">← この会計は対象です</b>' : ` <b style="color:var(--red)">あと${yen(cp.min - baseTotal)}で対象</b>`);
+  const after = cart.reduce((a, c) => a + effPrice(c) * c.qty, 0);
+  $('campRow').classList.toggle('hide', !campaignOn);
+  $('campLabel').textContent = `キャンペーン ${pctText(cp.rate)}OFF`;
+  $('campDisc').textContent = '−' + yen(baseTotal - after);
+}
+
+// 予定価格から変えたのに備考が無い行（会計を止める）
+const needNote = c => c.price !== c.plan && !c.note.trim();
+
+function renderCart() {
+  const box = $('cart');
+  if (!cart.length) {
+    box.innerHTML = '<div class="sub">商品を読み取るとここに並びます。</div>';
+    $('cartFoot').classList.add('hide'); $('cartCount').textContent = ''; return;
+  }
+  box.innerHTML = cart.map(c => `<div class="cline">
+    <div class="row"><div class="grow"><div class="nm">${esc(c.name)}</div>
+      <div class="sub">${esc(c.code)} ／ 予定 ${yen(c.plan)}</div></div>
+      <button class="btn small danger" onclick="delLine('${c.key}')">削除</button></div>
+    <div class="grid">
+      <div><label>実際の販売単価</label>
+        <input class="${c.price !== c.plan ? 'changed' : ''}" inputmode="numeric" value="${c.price}"
+          onchange="setPrice('${c.key}',this.value)"></div>
+      <div><label>数量</label><div class="qty">
+        <button onclick="setQty('${c.key}',-1)">−</button><b>${c.qty}</b><button onclick="setQty('${c.key}',1)">＋</button></div></div>
+      <div style="text-align:right"><label>小計</label><b class="yen">${yen(effPrice(c) * c.qty)}</b>${campaignOn && campaign() ? `<div class="sub">割引後 単価${yen(effPrice(c))}</div>` : ''}</div>
+    </div>
+    <label style="font-size:12px;color:var(--sub);margin-top:6px;display:block">備考（値下げ・提供の理由）${needNote(c) ? '<b style="color:var(--red)">← 価格を変えたので必須</b>' : ''}</label>
+    <input class="${needNote(c) ? 'need' : ''}" value="${esc(c.note)}" placeholder="例：一部汚れありのため値下げ" onchange="setNote('${c.key}',this.value)">
+    <div class="chips">${NOTE_CHIPS.map((n, i) => `<button class="chip" onclick="chipNote('${c.key}',${i})">${esc(n.t)}</button>`).join('')}</div>
+  </div>`).join('');
+  const plan = cart.reduce((a, c) => a + c.plan * c.qty, 0);
+  const base = cart.reduce((a, c) => a + c.price * c.qty, 0);   // 商品ごとの値引き後
+  $('sPlan').textContent = yen(plan);
+  $('sDisc').textContent = plan - base ? '−' + yen(plan - base) : '¥0';
+  renderCampaign(base);
+  $('sTotal').textContent = yen(cartTotal());
+  $('cartCount').textContent = `${cart.reduce((a, c) => a + c.qty, 0)}点`;
+  $('cartFoot').classList.remove('hide');
+  renderPay(); renderChange();
+}
+const byKey = k => cart.find(c => c.key === k);
+function setPrice(k, v) { const c = byKey(k); c.price = Math.max(0, num(v)); renderCart(); }
+function setQty(k, d) { const c = byKey(k); c.qty = Math.max(1, c.qty + d); renderCart(); }
+function setNote(k, v) { byKey(k).note = v.trim(); renderCart(); }
+function chipNote(k, i) {
+  const c = byKey(k), n = NOTE_CHIPS[i];
+  c.note = n.t; if (n.zero) c.price = 0;
+  renderCart();
+}
+function delLine(k) { cart = cart.filter(c => c.key !== k); renderCart(); }
+function clearCart() { cart = []; pay = ''; campaignOn = false; $('received').value = ''; $('hitBox').innerHTML = ''; $('checkoutErr').innerHTML = ''; renderCart(); focusScan(); }
+
+function setPay(p) { pay = p; renderPay(); renderChange(); }
+function renderPay() {
+  $('payCash').classList.toggle('on', pay === '現金');
+  $('payAir').classList.toggle('on', pay === 'エアペイ');
+  $('cashBox').classList.toggle('hide', pay !== '現金');
+}
+function cartTotal() { return cart.reduce((a, c) => a + effPrice(c) * c.qty, 0); }
+function setReceived(v) { $('received').value = v === 'just' ? cartTotal() : v; renderChange(); }
+function renderChange() {
+  const r = num($('received').value), t = cartTotal();
+  const el = $('change');
+  if (!$('received').value) { el.textContent = '—'; el.style.color = ''; return; }
+  el.textContent = r >= t ? yen(r - t) : `${yen(t - r)} 足りません`;
+  el.style.color = r >= t ? 'var(--green)' : 'var(--red)';
+}
+
+/* ---------- 会計を確定 ---------- */
+function checkout() {
+  const errs = [];
+  if (!curEvent()) errs.push('イベントを選んでください。');
+  if (!pay) errs.push('支払方法（現金／エアペイ）を選んでください。');
+  if (cart.some(needNote)) errs.push('価格を変えた商品は、備考に理由を書いてください（黄色・赤枠の行）。');
+  if (!S.settings.user) errs.push('「設定」で担当者名を入れてください。');
+  if (pay === '現金' && $('received').value && num($('received').value) < cartTotal()) errs.push('お預かり金額が足りません。');
+  if (errs.length) { $('checkoutErr').innerHTML = `<div class="err">${errs.map(esc).join('<br>')}</div>`; return; }
+
+  const ev = curEvent(), saleId = uid(), soldAt = nowStr();
+  const cp = campaignOn ? campaign() : null;
+  const campText = cp ? 'キャンペーン' + pctText(cp.rate) + 'OFF' : '';
+  const mode = (S.settings.mode === 'offline' || netState !== 'online') ? 'オフライン' : 'オンライン';
+  cart.forEach(c => {
+    const line = {
+      lineId: uid(), saleId, soldAt, eventId: ev.id, eventName: ev.name,
+      barcode: c.barcode, code: c.code, name: c.name, qty: c.qty,
+      planPrice: c.plan, price: effPrice(c), note: [c.note, campText].filter(Boolean).join(' / '), campaign: campText, pay,
+      user: S.settings.user, device: S.settings.device, mode,
+      status: '有効', synced: false, cancelSynced: false
+    };
+    S.lines.push(line);
+    S.ops.push({ opId: uid(), type: 'sale', line: stripLine(line) });
+  });
+  save();   // ← ここでスマホに保存。電波が無くても記録は残る
+  const total = cartTotal();
+  clearCart();
+  toast(`記録しました ${yen(total)}（${pay}）`);
+  renderAll();
+  syncNow(false);
+}
+// シートに送る項目だけ
+function stripLine(l) {
+  const { synced, cancelSynced, status, ...rest } = l; return rest;
+}
+
+/* ================================================================
+ *  シートとの通信（送れるときに送る）
+ * ================================================================ */
+async function api(method, payload, timeoutMs = 20000) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), timeoutMs);
+  try {
+    let res;
+    if (method === 'GET') {
+      const q = new URLSearchParams(payload).toString();
+      res = await fetch(S.settings.url + '?' + q, { signal: ctl.signal });
+    } else {
+      // text/plain で送る（Googleの仕組み上、これが一番確実）
+      res = await fetch(S.settings.url, { method: 'POST', body: JSON.stringify(payload), signal: ctl.signal, headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
+    }
+    const data = await res.json();
+    return data;
+  } finally { clearTimeout(t); }
+}
+
+// 未送信をまとめて送る。manual=true のときは結果を画面に出す
+async function syncNow(manual) {
+  if (S.settings.mode === 'offline') { if (manual) toast('オフライン固定中です。「自動」に切り替えると送ります'); renderStatus(); return; }
+  if (!S.settings.url || !S.settings.key) { netState = 'unset'; renderStatus(); if (manual) toast('「設定」でシートのURLとパスコードを入れてください'); return; }
+  if (syncing) return;
+  if (!S.ops.length) { await refreshMaster(manual); return; }
+  syncing = true;
+  try {
+    const batch = S.ops.slice(0, 200);   // 一度に送る上限
+    const data = await api('POST', { key: S.settings.key, action: 'sync', ops: batch });
+    if (!data.ok) throw Object.assign(new Error(data.error || '送信エラー'), { server: true });
+    const acc = new Set(data.accepted || []);
+    batch.forEach(op => {
+      if (!acc.has(op.opId)) return;
+      if (op.type === 'sale') { const l = S.lines.find(x => x.lineId === op.line.lineId); if (l) l.synced = true; }
+      if (op.type === 'cancel') { const l = S.lines.find(x => x.lineId === op.lineId); if (l) l.cancelSynced = true; }
+      if (op.type === 'settle') { const s = S.settles.find(x => x.settleId === op.settle.settleId); if (s) s.synced = true; }
+      if (op.type === 'campaign' && S.settings.campOverride && !S.ops.some(o => o !== op && o.type === 'campaign' && o.eventId === op.eventId && !acc.has(o.opId))) delete S.settings.campOverride[op.eventId];
+    });
+    S.ops = S.ops.filter(op => !acc.has(op.opId));
+    if (data.master) S.master = data.master;
+    S.lastSync = nowStr();
+    netState = 'online'; netError = '';
+    save();
+    if (manual) toast(`シートに送りました（${acc.size}件）`);
+    if (S.ops.length && acc.size) { syncing = false; return syncNow(manual); }   // 残りがあれば続けて送る
+  } catch (e) {
+    handleNetError(e, manual);
+  } finally { syncing = false; renderAll(); }
+}
+
+// 商品データ（イベント・予定価格・残数）をシートから取る
+async function refreshMaster(manual) {
+  if (S.settings.mode === 'offline' && manual) { toast('オフライン固定中は取得できません。「自動」にしてから押してください'); return; }
+  if (S.settings.mode === 'offline') return;
+  if (!S.settings.url || !S.settings.key) { netState = 'unset'; renderStatus(); if (manual) toast('「設定」でURLとパスコードを入れてください'); return; }
+  try {
+    const data = await api('GET', { action: 'master', key: S.settings.key });
+    if (!data.ok) throw Object.assign(new Error(data.error || '取得エラー'), { server: true });
+    S.master = data.master;
+    // 選んでいたイベントが受付終了・削除されていたら、受付中の最初のイベントにする
+    if (!curEvent() || !curEvent().open) {
+      const first = S.master.events.find(e => e.open);
+      if (first && !cart.length) S.settings.eventId = first.id;
+    }
+    netState = 'online'; netError = '';
+    save();
+    if (manual) toast(`商品データを取得しました（${S.master.items.length}件）`);
+  } catch (e) { handleNetError(e, manual); }
+  renderAll();
+}
+function handleNetError(e, manual) {
+  if (e.server) { netState = 'error'; netError = e.message; if (manual) toast('⚠ ' + e.message, 4000); }
+  else { netState = 'offline'; netError = ''; if (manual) toast('電波がないため、スマホに保存しました。戻ったら自動で送ります', 3500); }
+}
+
+/* ---------- 接続モード ---------- */
+function setMode(m) {
+  S.settings.mode = m; save();
+  toast(m === 'offline' ? 'オフライン固定にしました（スマホに貯めます）' : '自動（オンライン優先）にしました');
+  renderAll();
+  if (m === 'auto') syncNow(false);
+}
+function toggleMode() { setMode(S.settings.mode === 'offline' ? 'auto' : 'offline'); }
+
+/* ================================================================
+ *  履歴・取消
+ * ================================================================ */
+function renderHistory() {
+  const lines = S.lines.filter(l => l.eventId === S.settings.eventId);
+  if (!lines.length) { $('histList').innerHTML = '<div class="sub">このイベントの販売はまだありません。</div>'; return; }
+  const groups = {};
+  lines.forEach(l => { (groups[l.saleId] = groups[l.saleId] || []).push(l); });
+  const list = Object.values(groups).sort((a, b) => b[0].soldAt.localeCompare(a[0].soldAt));
+  $('histList').innerHTML = list.map(g => {
+    const valid = g.filter(l => l.status === '有効');
+    const total = valid.reduce((a, l) => a + l.price * l.qty, 0);
+    const pend = g.some(l => !l.synced || (l.status === '取消' && !l.cancelSynced));
+    return `<div class="sale">
+      <div class="row"><b class="grow">${esc(g[0].soldAt.slice(5, 16))}　${yen(total)}</b>
+        <span class="tag ${g[0].pay === '現金' ? 't-cash' : 't-air'}">${esc(g[0].pay)}</span>
+        <span class="tag ${pend ? 't-wait' : 't-ok'}">${pend ? '未送信' : '送信済'}</span></div>
+      ${g.map(l => `<div class="lineitem ${l.status === '取消' ? 'cancel' : ''}">
+        <span class="grow">${esc(l.name)} ×${l.qty}${l.price !== l.planPrice ? `<br><span class="sub">予定${yen(l.planPrice)}→${yen(l.price)} ${esc(l.note)}</span>` : (l.note ? `<br><span class="sub">${esc(l.note)}</span>` : '')}</span>
+        <span class="yen">${yen(l.price * l.qty)}</span>
+        ${l.status === '有効' ? `<button class="btn small danger" onclick="askCancel('${l.lineId}')">取消</button>` : '<span class="sub">取消済</span>'}
+      </div><div id="cx-${l.lineId}"></div>`).join('')}
+    </div>`;
+  }).join('');
+}
+// 取消は確認欄を出してから（押し間違い防止）
+function askCancel(id) {
+  $('cx-' + id).innerHTML = `<div class="warn">取消の理由：<input id="cr-${id}" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;margin:6px 0" placeholder="例：読み取り間違い">
+    <button class="btn small danger" onclick="doCancel('${id}')">取消を確定</button>
+    <button class="btn small" onclick="$('cx-${id}').innerHTML=''">やめる</button></div>`;
+}
+function doCancel(id) {
+  const l = S.lines.find(x => x.lineId === id); if (!l) return;
+  const reason = ($('cr-' + id).value || '').trim() || '理由未入力';
+  if (!l.synced) {
+    // まだシートに送っていない → 送信予定から外すだけ
+    S.ops = S.ops.filter(op => !(op.type === 'sale' && op.line.lineId === id));
+    l.status = '取消'; l.cancelSynced = true; l.synced = true; l.note = (l.note ? l.note + ' / ' : '') + '取消：' + reason; l.neverSent = true;
+  } else {
+    l.status = '取消';
+    S.ops.push({ opId: uid(), type: 'cancel', lineId: id, reason });
+  }
+  save(); toast('取消しました'); renderAll(); syncNow(false);
+}
+
+/* ================================================================
+ *  精算（現金・エアペイの照合）
+ * ================================================================ */
+const DENOMS = [10000, 5000, 2000, 1000, 500, 100, 50, 10, 5, 1];
+function buildDenoms() {
+  $('denoms').innerHTML = DENOMS.map(d => `<label><span style="width:52px;text-align:right">${d.toLocaleString()}円</span>×<input inputmode="numeric" data-d="${d}" oninput="countedManual=false;renderSettle()">枚</label>`).join('');
+}
+function setScope(s) { S.settings.scope = s; save(); renderSettle(); }
+// システム側の売上（この端末だけ／イベント全体）
+function systemFigures() {
+  const eid = S.settings.eventId;
+  const mine = S.lines.filter(l => l.eventId === eid && l.status === '有効');
+  const f = { count: new Set(mine.map(l => l.saleId)).size, qty: 0, cash: 0, air: 0, disc: 0 };
+  mine.forEach(l => {
+    f.qty += l.qty; f.disc += (l.planPrice - l.price) * l.qty;
+    if (l.pay === '現金') f.cash += l.price * l.qty; else f.air += l.price * l.qty;
+  });
+  if (S.settings.scope === 'all') {
+    const ev = curEvent();
+    const all = { count: null, qty: ev ? ev.qty : 0, cash: ev ? ev.cash : 0, air: ev ? ev.airpay : 0, disc: ev ? ev.discount : 0 };
+    // シートにまだ届いていない、この端末の分を足す
+    S.lines.forEach(l => {
+      if (l.eventId !== eid) return;
+      let sign = 0;
+      if (!l.synced && l.status === '有効') sign = 1;
+      if (l.synced && l.status === '取消' && !l.cancelSynced) sign = -1;
+      if (!sign) return;
+      all.qty += sign * l.qty; all.disc += sign * (l.planPrice - l.price) * l.qty;
+      if (l.pay === '現金') all.cash += sign * l.price * l.qty; else all.air += sign * l.price * l.qty;
+    });
+    return all;
+  }
+  return f;
+}
+function renderSettle() {
+  const all = S.settings.scope === 'all';
+  $('scopeDev').classList.toggle('on', !all); $('scopeAll').classList.toggle('on', all);
+  $('scopeNote').textContent = all
+    ? `シートの集計（${S.master.fetchedAt || '未取得'} 時点）＋この端末の未送信分。他の端末の未送信分は入りません。全端末を送信済みにしてから使ってください。`
+    : 'このスマホで記録した販売だけを集計します。レジ（お金の箱）ごとに照合するときに使います。';
+  const f = systemFigures();
+  $('xCount').textContent = f.count == null ? '—' : f.count + '件';
+  $('xQty').textContent = f.qty + '点';
+  $('xCash').textContent = yen(f.cash); $('xAir').textContent = yen(f.air);
+  $('xDisc').textContent = yen(f.disc); $('xTotal').textContent = yen(f.cash + f.air);
+
+  // 釣銭準備金はイベントごとに覚えておく
+  const flEl = $('float');
+  if (document.activeElement !== flEl && flEl.dataset.ev !== S.settings.eventId) {
+    flEl.value = S.settings.floats[S.settings.eventId] ?? ''; flEl.dataset.ev = S.settings.eventId;
+  } else { S.settings.floats[S.settings.eventId] = flEl.value; save(); }
+
+  // 金種の合計
+  let denomSum = 0, any = false;
+  document.querySelectorAll('#denoms input').forEach(i => { if (i.value !== '') any = true; denomSum += num(i.value) * Number(i.dataset.d); });
+  if (any && !countedManual) $('counted').value = denomSum;
+
+  const counted = $('counted').value === '' ? null : num($('counted').value);
+  if (counted == null) { $('cashDiff').textContent = '—'; $('cashDiff').className = ''; }
+  else {
+    const d = counted - num(flEl.value) - f.cash;
+    $('cashDiff').textContent = d === 0 ? '0円（一致）' : (d > 0 ? '+' : '') + d.toLocaleString() + '円（' + (d > 0 ? '多い' : '足りない') + '）';
+    $('cashDiff').className = d === 0 ? 'diff0' : 'diffx';
+  }
+  const air = $('airTotal').value === '' ? null : num($('airTotal').value);
+  if (air == null) { $('airDiff').textContent = '—'; $('airDiff').className = ''; }
+  else {
+    const d = air - f.air;
+    $('airDiff').textContent = d === 0 ? '0円（一致）' : (d > 0 ? '+' : '') + d.toLocaleString() + '円';
+    $('airDiff').className = d === 0 ? 'diff0' : 'diffx';
+  }
+  $('settleLog').innerHTML = S.settles.filter(s => s.eventId === S.settings.eventId).slice(-5).reverse()
+    .map(s => `<div class="sub">${esc(s.at)} ${esc(s.scope)} 現金差額${yen(s.cashDiff)} エアペイ差額${s.airpayDiff === '' ? '—' : yen(s.airpayDiff)} ${s.synced ? '（送信済）' : '（未送信）'}</div>`).join('');
+}
+function saveSettle() {
+  const ev = curEvent(); if (!ev) { toast('イベントを選んでください'); return; }
+  if ($('counted').value === '' && $('airTotal').value === '') { toast('数えた現金かエアペイ合計を入れてください'); return; }
+  const f = systemFigures();
+  const counted = $('counted').value === '' ? '' : num($('counted').value);
+  const air = $('airTotal').value === '' ? '' : num($('airTotal').value);
+  const fl = num($('float').value);
+  const s = {
+    settleId: uid(), at: nowStr(), eventId: ev.id, eventName: ev.name,
+    scope: S.settings.scope === 'all' ? 'イベント全体' : 'この端末（' + (S.settings.device || '名前なし') + '）',
+    user: S.settings.user, device: S.settings.device,
+    sysCash: f.cash, float: fl, countedCash: counted, cashDiff: counted === '' ? '' : counted - fl - f.cash,
+    sysAirpay: f.air, airpayTotal: air, airpayDiff: air === '' ? '' : air - f.air,
+    memo: $('settleMemo').value.trim(), synced: false
+  };
+  S.settles.push(s);
+  const { synced, ...send } = s;
+  S.ops.push({ opId: uid(), type: 'settle', settle: send });
+  save(); toast('精算を記録しました'); renderAll(); syncNow(false);
+}
+
+/* ---------- CSV保存（オフラインでもできる控え） ---------- */
+function exportCSV(onlyEvent) {
+  const rows = [['販売ID', '販売日時', 'イベントID', 'イベント名', 'バーコード', '商品コード', '商品名', '数量', '販売予定価格', '販売単価', '販売金額', '値引額', '支払方法', '備考', '状態', '送信', '担当', '端末']];
+  S.lines.filter(l => !onlyEvent || l.eventId === S.settings.eventId).forEach(l => rows.push([
+    l.saleId, l.soldAt, l.eventId, l.eventName, l.barcode, l.code, l.name, l.qty, l.planPrice, l.price, l.price * l.qty,
+    (l.planPrice - l.price) * l.qty, l.pay, l.note, l.status, l.synced && !l.neverSent ? '済' : (l.neverSent ? '送信前に取消' : '未'), l.user, l.device]));
+  const csv = '﻿' + rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = `大会販売_${onlyEvent ? (S.settings.eventId || '') : '全件'}_${nowStr().replace(/[\/: ]/g, '').slice(0, 12)}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+/* ================================================================
+ *  設定
+ * ================================================================ */
+function fillSettings() {
+  $('cfgUser').value = S.settings.user; $('cfgDevice').value = S.settings.device;
+  $('cfgUrl').value = S.settings.url; $('cfgKey').value = S.settings.key;
+}
+async function saveSettings() {
+  S.settings.user = $('cfgUser').value.trim(); S.settings.device = $('cfgDevice').value.trim();
+  S.settings.url = $('cfgUrl').value.trim(); S.settings.key = $('cfgKey').value.trim();
+  save(); toast('保存しました。接続を確認しています…');
+  if (S.settings.mode === 'offline') { toast('保存しました（オフライン固定中のため接続テストはしません）'); renderAll(); return; }
+  await refreshMaster(true);
+}
+function resetAll() {
+  if (S.ops.length) { toast('未送信が残っています。先に送信してください'); return; }
+  const box = document.createElement('div');
+  box.className = 'warn';
+  box.innerHTML = `本当に消しますか？ 確認のため「削除」と入力：<input id="rmConf" style="width:100%;padding:8px;margin:6px 0">
+    <button class="btn small danger" id="rmGo">消す</button>`;
+  event.target.after(box);
+  $('rmGo').onclick = () => {
+    if ($('rmConf').value !== '削除') { toast('「削除」と入力してください'); return; }
+    const keep = { url: S.settings.url, key: S.settings.key, user: S.settings.user, device: S.settings.device };
+    localStorage.removeItem(STORE_KEY); load();
+    S = { settings: Object.assign(S.settings, keep, { eventId: '', mode: 'auto', floats: {} }), master: { events: [], items: [], fetchedAt: '' }, lines: [], ops: [], settles: [], lastSync: '' };
+    save(); box.remove(); toast('消しました'); renderAll(); refreshMaster(false);
+  };
+}
+
+/* ---------- スタッフ用リンク（設定を自動で入れる） ----------
+ * リンクの # 以降に「シートのURL」と「パスコード」を入れておく。
+ * # 以降はインターネット上のどこにも送られず、スマホの中だけで読まれる。 */
+function b64e(str) { return btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+function b64d(str) { str = str.replace(/-/g, '+').replace(/_/g, '/'); while (str.length % 4) str += '='; return decodeURIComponent(escape(atob(str))); }
+function applyLinkConfig() {
+  const m = location.hash.match(/[#&]c=([\w-]+)/);
+  if (!m) return false;
+  try {
+    const c = JSON.parse(b64d(m[1]));
+    let changed = false;
+    if (c.u && c.k && (c.u !== S.settings.url || c.k !== S.settings.key)) { S.settings.url = c.u; S.settings.key = c.k; changed = true; }
+    // 大会が決められたリンク：その大会を選んだ状態にする（受付中の組み合わせが変わるまで有効）
+    if (c.e && S.settings.linkEvent !== c.e) { S.settings.eventId = c.e; S.settings.linkEvent = c.e; S.settings.eventPickedFor = 'link:' + c.e; changed = true; }
+    if (changed) save();
+    return changed;
+  } catch (e) { console.warn('リンクの設定を読めません', e); }
+  return false;
+}
+function makeStaffLink() {
+  if (!S.settings.url || !S.settings.key) { toast('先にURLとパスコードを保存してください'); return; }
+  const base = location.href.split('#')[0].replace(/\?.*$/, '');
+  const ev = curEvent();
+  const cfg = { u: S.settings.url, k: S.settings.key };
+  if ($('linkWithEvent').checked && ev) cfg.e = ev.id;   // 大会を決めたリンク
+  const link = base + '#c=' + b64e(JSON.stringify(cfg));
+  const t = $('staffLink'); t.value = link; t.classList.remove('hide'); t.select();
+  if (navigator.clipboard) navigator.clipboard.writeText(link).then(() => toast('コピーしました。LINEなどでスタッフに送ってください')).catch(() => {});
+}
+function renderCampSettings() {
+  const ev = curEvent(), cp = campaign();
+  const ov = ev && (S.settings.campOverride || {})[ev.id];
+  $('campNow').innerHTML = !ev ? '大会を選んでください' :
+    `${esc(ev.name)}：今の設定は <b>${cp ? (cp.min ? yen(cp.min) + '以上で' : '') + pctText(cp.rate) + 'OFF' : 'キャンペーンなし'}</b>${ov ? '（この端末で変更・シートへ未送信）' : ''}`;
+}
+function changeCampaign(stop) {
+  const ev = curEvent(); if (!ev) { toast('大会を選んでください'); return; }
+  const reason = $('cfgCampReason').value.trim();
+  if (!reason) { toast('変更の理由を入れてください'); return; }
+  let rate = 0, min = 0;
+  if (!stop) {
+    rate = num($('cfgCampRate').value) / 100; min = num($('cfgCampMin').value);
+    if (!(rate > 0 && rate < 1)) { toast('割引率は1〜99の数字で入れてください'); return; }
+  }
+  S.settings.campOverride = S.settings.campOverride || {};
+  S.settings.campOverride[ev.id] = { rate, min };
+  S.ops.push({ opId: uid(), type: 'campaign', eventId: ev.id, rate, min, reason, user: S.settings.user, device: S.settings.device, at: nowStr() });
+  save(); $('cfgCampReason').value = '';
+  toast(stop ? 'キャンペーンをやめました' : `${min ? yen(min) + '以上で' : ''}${pctText(rate)}OFF に変更しました`);
+  renderAll(); syncNow(false);
+}
+function saveName() {
+  const n = $('firstName').value.trim();
+  if (!n) { toast('名前を入れてください'); return; }
+  S.settings.user = n; save(); renderAll(); focusScan();
+  toast(n + 'さん、バーコードを読み取れば販売スタートです');
+}
+
+/* ================================================================
+ *  画面の描画
+ * ================================================================ */
+function renderStatus() {
+  const b = $('badge'), n = S.ops.length;
+  if (S.settings.mode === 'offline') { b.className = 'badge b-off'; b.textContent = '⚫ オフライン固定'; }
+  else if (netState === 'online') { b.className = n ? 'badge b-wait' : 'badge b-on'; b.textContent = n ? `🟠 送信待ち ${n}` : '🟢 オンライン'; }
+  else if (netState === 'offline') { b.className = 'badge b-wait'; b.textContent = '🟠 電波なし（スマホに保存中）'; }
+  else if (netState === 'error') { b.className = 'badge b-err'; b.textContent = '🔴 シート接続エラー'; }
+  else if (netState === 'unset') { b.className = 'badge b-err'; b.textContent = '⚙ 未設定'; }
+  else { b.className = 'badge b-off'; b.textContent = '… 確認中'; }
+  $('tPending').textContent = n;
+}
+function renderHeader() {
+  const sel = $('evSel');
+  const evs = S.master.events.filter(e => e.open || e.id === S.settings.eventId);
+  sel.innerHTML = (evs.length ? '' : '<option value="">（イベントがありません）</option>') +
+    evs.map(e => `<option value="${esc(e.id)}">${esc(e.name)}（${esc(e.date)}）${e.open ? '' : '・受付終了'}</option>`).join('');
+  sel.value = S.settings.eventId;
+  if (!curEvent() && evs.length && !cart.length) { S.settings.eventId = evs[0].id; sel.value = evs[0].id; save(); }
+  $('saleEvName').textContent = needEventPick() ? '（大会を選んでください）' : (curEvent() ? '（' + curEvent().name + '）' : '');
+  const t = eventTotals();
+  $('tAmount').textContent = yen(t.amount); $('tQty').textContent = t.qty;
+}
+function renderWarn() {
+  const w = [];
+  if (!S.settings.url) w.push('設定がまだです。管理者から届いた「スタッフ用リンク」を開き直してください。');
+  else if (!S.master.fetchedAt) w.push('商品データがまだありません。電波のある所で「設定」→「商品データを取得」を押してください。');
+  else {
+    const age = (Date.now() - new Date(S.master.fetchedAt.replace(/\//g, '-').replace(' ', 'T')).getTime()) / 3600000;
+    if (age > 12) w.push(`商品データの取得から${Math.floor(age)}時間たっています。予定価格を変えた場合は電波のある所で「商品データを取得」を押してください。`);
+  }
+  if (netState === 'error' && netError) w.push('シート接続エラー：' + netError);
+  $('setupWarn').innerHTML = w.map(x => `<div class="warn">${esc(x)}</div>`).join('');
+}
+function renderSettingsInfo() {
+  $('iMode').textContent = S.settings.mode === 'offline' ? 'オフライン固定' : '自動（オンライン優先）';
+  $('iState').textContent = { online: 'シートにつながっています', offline: '電波なし（スマホに保存中）', error: 'エラー', unset: '未設定', unknown: '確認中' }[netState] || netState;
+  $('iPending').textContent = S.ops.length + '件';
+  $('iLastSync').textContent = S.lastSync || '—';
+  $('iFetched').textContent = S.master.fetchedAt || '未取得';
+  $('iItems').textContent = S.master.items.length + '件';
+  $('iErr').innerHTML = netError ? `<div class="err">${esc(netError)}</div>` : '';
+  $('mAuto').classList.toggle('on', S.settings.mode !== 'offline');
+  $('mOff').classList.toggle('on', S.settings.mode === 'offline');
+}
+function renderAll() {
+  renderEventPick();
+  $('nameCard').classList.toggle('hide', !!S.settings.user || !S.settings.url);
+  renderStatus(); renderHeader(); renderWarn(); renderCart();
+  if (!$('tab-history').classList.contains('hide')) renderHistory();
+  if (!$('tab-settle').classList.contains('hide')) renderSettle();
+  renderSettingsInfo();
+  renderCampSettings();
+}
+function showTab(t) {
+  ['sale', 'history', 'settle', 'settings'].forEach(x => {
+    $('tab-' + x).classList.toggle('hide', x !== t); $('nav-' + x).classList.toggle('on', x === t);
+  });
+  if (t === 'settings') fillSettings();
+  renderAll(); window.scrollTo(0, 0);
+  if (t === 'sale') focusScan();
+}
+
+/* ================================================================
+ *  カメラ読み取り（ライブラリは初回に読み込み、以後はスマホに保存）
+ * ================================================================ */
+let qr = null;
+function loadScript(src) {
+  return new Promise((ok, ng) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = ng; document.head.appendChild(s); });
+}
+async function toggleCamera() {
+  if (qr) { await qr.stop().catch(() => {}); qr = null; $('reader').classList.add('hide'); $('camBtn').textContent = '📷 カメラで読み取る'; return; }
+  try {
+    if (!window.Html5Qrcode) await loadScript(QR_LIB);
+  } catch (e) { toast('カメラ機能を読み込めませんでした（初回は電波が必要です）'); return; }
+  $('reader').classList.remove('hide');
+  qr = new Html5Qrcode('reader');
+  let last = '', lastAt = 0;
+  try {
+    await qr.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 260, height: 120 } }, text => {
+      // 同じバーコードを連続で拾わないように1.5秒あける
+      if (text === last && Date.now() - lastAt < 1500) return;
+      last = text; lastAt = Date.now();
+      if (navigator.vibrate) navigator.vibrate(80);
+      onScan(text);
+    });
+    $('camBtn').textContent = '⏹ カメラを止める';
+  } catch (e) { toast('カメラを起動できませんでした：' + e); qr = null; $('reader').classList.add('hide'); }
+}
+
+/* ================================================================
+ *  起動
+ * ================================================================ */
+load();
+if (applyLinkConfig()) toast('設定が完了しました', 2500);
+// 端末名は自動でつける（あとで設定画面から変更可）
+if (!S.settings.device) { S.settings.device = '端末-' + Math.random().toString(36).slice(2, 6).toUpperCase(); save(); }
+buildDenoms();
+renderAll();
+focusScan();
+// 電波の状態が変わったら送る
+window.addEventListener('online', () => syncNow(false));
+window.addEventListener('offline', () => { netState = 'offline'; renderAll(); });
+// 30秒ごとに未送信を送る・2分ごとに残数を更新
+setInterval(() => { if (S.ops.length) syncNow(false); }, 30000);
+setInterval(() => { if (!S.ops.length && !cart.length) refreshMaster(false); }, 120000);
+// 画面に戻ってきたとき（翌日の起動を含む）にも確認
+document.addEventListener('visibilitychange', () => { if (!document.hidden) syncNow(false); });
+// 起動時：前回のモードのまま接続を確認
+if (S.settings.mode === 'offline') toast('前回の続き：オフライン固定です（右上を押すと切替）', 3500);
+syncNow(false);
+// スマホにデータを消されにくくする
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+// オフラインでも開けるようにする仕組み（サービスワーカー）
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
