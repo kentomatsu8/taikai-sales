@@ -339,7 +339,7 @@ nav button.on{color:var(--blue);font-weight:700}
     <button class="btn danger big" style="margin-top:8px" onclick="resetAll()">この端末のデータを全部消す</button>
     <div class="sub" style="margin-top:6px">未送信が残っているときは消せません。</div>
   </div>
-  <div class="sub" style="text-align:center">大会販売システム v1.8</div>
+  <div class="sub" style="text-align:center">大会販売システム v1.9</div>
 </section>
 </div>
 
@@ -721,7 +721,7 @@ async function syncNow(manual) {
       if (op.type === 'campaign' && S.settings.campOverride && !S.ops.some(o => o !== op && o.type === 'campaign' && o.eventId === op.eventId && !acc.has(o.opId))) delete S.settings.campOverride[op.eventId];
     });
     S.ops = S.ops.filter(op => !acc.has(op.opId));
-    if (data.master) { S.master = data.master; S.masterAt = Date.now(); }
+    if (data.master) applyMaster(data.master);
     S.lastSync = nowStr();
     netState = 'online'; netError = '';
     save();
@@ -732,6 +732,38 @@ async function syncNow(manual) {
   } finally { syncing = false; renderAll(); }
 }
 
+/* 大会中に止めない保険（11/18）：シートを誤って触って「商品0件」「大会が消えた」などの
+   おかしなデータが届いたら、その大会はスマホに残っている前の商品データのまま販売を続ける。 */
+function applyMaster(nm) {
+  if (!nm || !Array.isArray(nm.events) || !Array.isArray(nm.items)) return false;
+  const old = S.master || { events: [], items: [] };
+  const warns = [];
+  const oldOpen = old.events.filter(e => e.open);
+  if (oldOpen.length && !nm.events.length) {
+    S.masterWarn = 'シートから大会が1つも届きませんでした（イベントシートの誤操作？）。前の商品データのまま販売できます。管理者に連絡してください。';
+    return false;   // 全部そのまま
+  }
+  const keepEv = [], keepIt = [];
+  oldOpen.forEach(oe => {
+    const cnt = a => a.filter(i => i.eventId === oe.id).length;
+    const oc = cnt(old.items);
+    const ne = nm.events.find(e => e.id === oe.id);
+    if (!ne) {   // 大会IDが消えた・変わった → 選んでいる大会なら前のまま残す
+      if (oe.id === S.settings.eventId && oc) { keepEv.push(oe); keepIt.push(...old.items.filter(i => i.eventId === oe.id)); warns.push(`「${oe.name}」がシートで見つかりません`); }
+      return;
+    }
+    if (!ne.open) return;   // 受付終了にしたのは正しい操作
+    const nc = cnt(nm.items);
+    if (oc && (nc === 0 || (oc >= 10 && nc < oc / 2))) {
+      nm.items = nm.items.filter(i => i.eventId !== oe.id).concat(old.items.filter(i => i.eventId === oe.id));
+      warns.push(`「${oe.name}」の商品が${oc}件→${nc}件に減っていました（大会シート名の変更・貼り直しミス？）`);
+    }
+  });
+  nm.events = nm.events.concat(keepEv); nm.items = nm.items.concat(keepIt);
+  S.master = nm; S.masterAt = Date.now();
+  S.masterWarn = warns.length ? warns.join('／') + '。前の商品データのまま販売できます。シートを直したら「商品データを取得」を押してください。' : '';
+  return true;
+}
 // 商品データ（イベント・予定価格・残数）をシートから取る
 async function refreshMaster(manual) {
   if (S.settings.mode === 'offline' && manual) { toast('オフライン固定中は取得できません。「自動」にしてから押してください'); return; }
@@ -750,7 +782,7 @@ async function refreshMaster(manual) {
   try {
     const data = await api('GET', { action: 'master', key: S.settings.key });
     if (!data.ok) throw Object.assign(new Error(data.error || '取得エラー'), { server: true });
-    S.master = data.master; S.masterAt = Date.now();
+    applyMaster(data.master);
     pruneOld();
     // 選んでいたイベントが受付終了・削除されていたら、受付中の最初のイベントにする
     if (!curEvent() || !curEvent().open) {
@@ -759,7 +791,8 @@ async function refreshMaster(manual) {
     }
     netState = 'online'; netError = '';
     save();
-    if (manual) toast(`商品データを取得しました（${S.master.items.length}件）`);
+    if (S.masterWarn) toast('⚠ ' + S.masterWarn, 6000);
+    else if (manual) toast(`商品データを取得しました（${S.master.items.length}件）`);
   } catch (e) { handleNetError(e, manual); }
   renderAll();
 }
@@ -1092,6 +1125,7 @@ function renderWarn() {
     const age = (Date.now() - new Date(S.master.fetchedAt.replace(/\//g, '-').replace(' ', 'T')).getTime()) / 3600000;
     if (age > 12) w.push(`商品データの取得から${Math.floor(age)}時間たっています。予定価格を変えた場合は電波のある所で「商品データを取得」を押してください。`);
   }
+  if (S.masterWarn) w.push('⚠ ' + S.masterWarn);
   if (netState === 'error' && netError) w.push('シート接続エラー：' + netError);
   else if ((netState === 'offline' || netState === 'slow') && netError) w.push(netError);
   $('setupWarn').innerHTML = w.map(x => `<div class="warn">${esc(x)}</div>`).join('');
