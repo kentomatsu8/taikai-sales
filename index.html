@@ -353,7 +353,7 @@ nav button.on{color:var(--blue);font-weight:700}
     <button class="btn danger big" style="margin-top:8px" onclick="resetAll()">この端末のデータを全部消す</button>
     <div class="sub" style="margin-top:6px">未送信が残っているときは消せません。</div>
   </div>
-  <div class="sub" style="text-align:center">大会販売システム v2.0</div>
+  <div class="sub" style="text-align:center">大会販売システム v2.1</div>
 </section>
 </div>
 
@@ -496,14 +496,14 @@ function onScan(code) {
   if (curEvent() && !curEvent().open) { showMiss(bc, 'この大会は販売受付が終了しています（シートの「販売受付」のチェック）。', false); return; }
   const item = findItem(bc);
   if (!item) { showMiss(bc, 'この大会の商品リストにありません。', true); return; }
-  addToCart({ barcode: bc, code: item.code, name: item.name, plan: item.plan });
+  addToCart({ barcode: bc, code: item.code, name: item.name, plan: item.plan, noDisc: !!item.noDisc });
   showHit(item);
 }
 function addToCart(p) {
   // 同じ商品・同じ価格・備考なしの行があれば数量を+1、なければ新しい行
   const same = cart.find(c => c.barcode === p.barcode && c.price === p.plan && !c.note && c.plan === p.plan);
   if (same) same.qty += 1;
-  else cart.push({ key: uid(), barcode: p.barcode, code: p.code || '', name: p.name, plan: p.plan, price: p.plan, qty: 1, note: p.note || '' });
+  else cart.push({ key: uid(), barcode: p.barcode, code: p.code || '', name: p.name, plan: p.plan, price: p.plan, qty: 1, note: p.note || '', noDisc: !!p.noDisc });
   renderCart();
   focusScan();
 }
@@ -552,10 +552,10 @@ const NOTE_CHIPS = [
 let campaignOn = false;
 /* その場の割引（11/24 kentoさん）：会計ごとに「5%OFF」「10%OFF」などを選び、理由（インスタ1つフォロー等）も選ぶ。
  * 選択肢はシートの「割引メニュー」（理由と割引率）から。シートから届いていなければ下の標準メニューを使う。
- * キャンペーンと同時には使えない（どちらか一方。片方を選ぶともう片方は外れる）。 */
+ * 11/25 kentoさん：キャンペーン（例：1万円以上5%）と重ねがけできる（両方なら5%＋5%＝10%OFF）。
+ * 「割引対象外」の商品（大会シートG列に✓。例：シャトル・ソックス）は、キャンペーン条件の合計にも、どちらの割引にも含めない。 */
 const DEFAULT_DISC_MENU = [
-  { reason: 'インスタ1つフォロー', rate: 0.05 },
-  { reason: 'インスタ2つフォロー', rate: 0.10 }
+  { reason: 'インスタ（J・V）2アカウントフォロー', rate: 0.05 }
 ];
 let disc = { rate: 0, reason: '', other: '' };
 function discMenu() {
@@ -569,7 +569,6 @@ function discReasonText() { return disc.reason === '__other' ? disc.other.trim()
 function setDiscRate(r) {
   disc.rate = disc.rate === r ? 0 : r;   // 同じボタンをもう一度押すと解除
   disc.reason = ''; disc.other = ''; $('discOther').value = '';
-  if (disc.rate) campaignOn = false;      // キャンペーンとは同時に使えない
   renderCart();
 }
 function setDiscReason(i) {
@@ -592,16 +591,19 @@ function renderDisc() {
     $('discNeed').classList.toggle('hide', !!discReasonText());
   }
   const base = cart.reduce((a, c) => a + c.price * c.qty, 0);
+  const cp = campaignOn ? campaign() : null;
   $('discRow').classList.toggle('hide', !disc.rate);
-  $('discLabel').textContent = disc.rate ? `割引 ${pctText(disc.rate)}OFF${discReasonText() ? '（' + discReasonText() + '）' : ''}` : '';
+  $('discLabel').textContent = !disc.rate ? '' : (cp ? `割引合計 ${pctText(activeRate())}OFF（キャンペーン${pctText(cp.rate)}＋割引${pctText(disc.rate)}）` :
+    `割引 ${pctText(disc.rate)}OFF${discReasonText() ? '（' + discReasonText() + '）' : ''}`);
   $('discAmt').textContent = '−' + yen(base - cartTotal());
 }
-// いま会計にかかっている割引率（キャンペーン or その場の割引）
+// いま会計にかかっている割引率（キャンペーン＋その場の割引の合計。例：5%＋5%＝10%）
 function activeRate() {
-  if (disc.rate) return disc.rate;
   const cp = campaign();
-  return campaignOn && cp ? cp.rate : 0;
+  return Math.round(((campaignOn && cp ? cp.rate : 0) + disc.rate) * 1000) / 1000;
 }
+// キャンペーン条件（○円以上）を見るときの合計：割引対象外の商品は入れない
+function eligibleBase() { return cart.filter(c => !c.noDisc).reduce((a, c) => a + c.price * c.qty, 0); }
 function campaign() {
   const ev = curEvent();
   if (!ev) return null;
@@ -611,11 +613,12 @@ function campaign() {
   return ev.campRate > 0 ? { rate: ev.campRate, min: ev.campMin || 0 } : null;
 }
 function effPrice(c) {
+  if (c.noDisc) return c.price;   // 割引対象外（シャトル・ソックスなど）は割引しない
   const r = activeRate();
   return r ? Math.floor(Math.round(c.price * (1 - r) * 100) / 1000) * 10 : c.price;
 }
 const pctText = r => Math.round(r * 100) + '%';
-function toggleCampaign() { campaignOn = !campaignOn; if (campaignOn) { disc = { rate: 0, reason: '', other: '' }; $('discOther').value = ''; } renderCart(); }
+function toggleCampaign() { campaignOn = !campaignOn; renderCart(); }
 function renderCampaign(baseTotal) {
   const cp = campaign();
   $('campBox').classList.toggle('hide', !cp);
@@ -624,9 +627,10 @@ function renderCampaign(baseTotal) {
   const cond = cp.min ? yen(cp.min) + '以上で' : '';
   $('campBtn').textContent = campaignOn ? `✅ キャンペーン ${pctText(cp.rate)}OFF 適用中（押すと解除）` : `🎁 キャンペーン ${pctText(cp.rate)}OFF を適用する`;
   $('campBtn').className = 'btn big' + (campaignOn ? ' primary' : '');
-  $('campNote').innerHTML = `${cond}${pctText(cp.rate)}OFF（全商品の単価に割引）` + (ok ? ' <b style="color:var(--green)">← この会計は対象です</b>' : ` <b style="color:var(--red)">あと${yen(cp.min - baseTotal)}で対象</b>`);
-  const after = cart.reduce((a, c) => a + effPrice(c) * c.qty, 0);
-  $('campRow').classList.toggle('hide', !campaignOn);
+  const ex = cart.some(c => c.noDisc) ? '・割引対象外の商品を除く合計 ' + yen(baseTotal) : '';
+  $('campNote').innerHTML = `${cond}${pctText(cp.rate)}OFF（対象商品の単価に割引${ex}）` + (ok ? ' <b style="color:var(--green)">← この会計は対象です</b>' : ` <b style="color:var(--red)">あと${yen(cp.min - baseTotal)}で対象</b>`);
+  const after = cart.filter(c => !c.noDisc).reduce((a, c) => a + effPrice(c) * c.qty, 0);
+  $('campRow').classList.toggle('hide', !campaignOn || !!disc.rate);   // 両方のときは下の「割引合計」にまとめて表示
   $('campLabel').textContent = `キャンペーン ${pctText(cp.rate)}OFF`;
   $('campDisc').textContent = '−' + yen(baseTotal - after);
 }
@@ -650,7 +654,7 @@ function renderCart() {
           onchange="setPrice('${c.key}',this.value)"></div>
       <div><label>数量</label><div class="qty">
         <button onclick="setQty('${c.key}',-1)">−</button><b>${c.qty}</b><button onclick="setQty('${c.key}',1)">＋</button></div></div>
-      <div style="text-align:right"><label>小計</label><b class="yen">${yen(effPrice(c) * c.qty)}</b>${activeRate() ? `<div class="sub">割引後 単価${yen(effPrice(c))}</div>` : ''}</div>
+      <div style="text-align:right"><label>小計</label><b class="yen">${yen(effPrice(c) * c.qty)}</b>${c.noDisc ? '<div class="sub">割引対象外</div>' : (activeRate() ? `<div class="sub">割引後 単価${yen(effPrice(c))}</div>` : '')}</div>
     </div>
     <label style="font-size:12px;color:var(--sub);margin-top:6px;display:block">備考（値下げ・提供の理由）${needNote(c) ? '<b style="color:var(--red)">← 価格を変えたので必須</b>' : ''}</label>
     <input class="${needNote(c) ? 'need' : ''}" value="${esc(c.note)}" placeholder="例：一部汚れありのため値下げ" onchange="setNote('${c.key}',this.value)">
@@ -660,7 +664,7 @@ function renderCart() {
   const base = cart.reduce((a, c) => a + c.price * c.qty, 0);   // 商品ごとの値引き後
   $('sPlan').textContent = yen(plan);
   $('sDisc').textContent = plan - base ? '−' + yen(plan - base) : '¥0';
-  renderCampaign(base);
+  renderCampaign(eligibleBase());
   renderDisc();
   $('sTotal').textContent = yen(cartTotal());
   $('cartCount').textContent = `${cart.reduce((a, c) => a + c.qty, 0)}点`;
@@ -700,7 +704,8 @@ function checkout() {
   const errs = [];
   if (!curEvent()) errs.push('大会を選んでください。');
   if (!pay) errs.push('支払方法（現金／エアペイ）を選んでください。');
-  if (disc.rate && !discReasonText()) errs.push('割引の理由を選んでください（インスタ1つフォローなど）。');
+  if (disc.rate && !discReasonText()) errs.push('割引の理由を選んでください（インスタのフォローなど）。');
+  if (campaignOn && campaign() && eligibleBase() < campaign().min) errs.push(`キャンペーンの条件（割引対象外の商品を除いて${yen(campaign().min)}以上）に届いていません。キャンペーンを外してください。`);
   if (cart.some(needNote)) errs.push('価格を変えた商品は、備考に理由を書いてください（黄色・赤枠の行）。');
   if (!S.settings.user) errs.push('「設定」で担当者名を入れてください。');
   if (pay === '現金' && $('received').value && num($('received').value) < cartTotal()) errs.push('お預かり金額が足りません。');
@@ -708,13 +713,13 @@ function checkout() {
 
   const ev = curEvent(), saleId = uid(), soldAt = nowStr();
   const cp = campaignOn ? campaign() : null;
-  const campText = disc.rate ? '割引' + pctText(disc.rate) + 'OFF（' + discReasonText() + '）' : (cp ? 'キャンペーン' + pctText(cp.rate) + 'OFF' : '');
+  const campText = [cp ? 'キャンペーン' + pctText(cp.rate) + 'OFF' : '', disc.rate ? '割引' + pctText(disc.rate) + 'OFF（' + discReasonText() + '）' : ''].filter(Boolean).join('＋');
   const mode = (S.settings.mode === 'offline' || netState !== 'online') ? 'オフライン' : 'オンライン';
   cart.forEach(c => {
     const line = {
       lineId: uid(), saleId, soldAt, eventId: ev.id, eventName: ev.name,
       barcode: c.barcode, code: c.code, name: c.name, qty: c.qty,
-      planPrice: c.plan, price: effPrice(c), note: [c.note, campText].filter(Boolean).join(' / '), campaign: campText, pay,
+      planPrice: c.plan, price: effPrice(c), note: [c.note, c.noDisc ? '' : campText].filter(Boolean).join(' / '), campaign: c.noDisc ? '' : campText, pay,
       user: S.settings.user, device: S.settings.device, mode,
       status: '有効', synced: false, cancelSynced: false
     };
