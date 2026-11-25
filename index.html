@@ -123,6 +123,16 @@ nav button.on{color:var(--blue);font-weight:700}
 .camSeen.ng{background:#fdecec;color:#b42318}
 .shutter{width:100%;margin-top:8px;padding:18px 14px;font-size:18px}
 .shutter:disabled{opacity:.5}
+/* カメラ全画面（上の売上表示・下のメニューの上に重ねる） */
+#camWrap.camFull{position:fixed;inset:0;z-index:40;background:#0d1520;display:flex;flex-direction:column;
+  padding:calc(env(safe-area-inset-top) + 8px) 12px calc(env(safe-area-inset-bottom) + 12px)}
+#camWrap.camFull #camTop{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+#camWrap.camFull #readerBox{flex:1 1 auto;min-height:0;display:flex;align-items:center;overflow:hidden;border-radius:12px;background:#000}
+#camWrap.camFull #reader{margin-top:0;flex:0 0 auto}
+#camWrap.camFull #camPanel{flex:0 0 auto}
+.camCount{flex:1;color:#fff;font-weight:700;font-size:15px}
+.camClose{padding:10px 12px;background:#2a3a52;color:#fff}
+body.camOn{overflow:hidden}
 </style>
 </head>
 <body>
@@ -174,11 +184,19 @@ nav button.on{color:var(--blue);font-weight:700}
     <div class="row" style="margin-top:8px">
       <button class="btn grow" type="button" onclick="toggleCamera()" id="camBtn">📷 カメラで読み取る</button>
     </div>
-    <div id="reader" class="hide"></div>
-    <!-- シャッター式：カメラは映したまま、ボタンを押したときだけ1点追加する -->
-    <div id="camPanel" class="hide">
-      <div id="camSeen" class="camSeen">バーコードを枠の中に入れてください</div>
-      <button class="btn primary shutter" type="button" id="shutterBtn" onclick="shutter()">📸 この商品を1点追加</button>
+    <!-- カメラ画面：開くと全画面になり、シャッターは画面の下（親指で押せる位置）に固定 -->
+    <div id="camWrap">
+      <div id="camTop" class="hide">
+        <div id="camCount" class="camCount">今回の会計 0点</div>
+        <button class="btn camClose" type="button" onclick="stopCamera()">✕ 閉じて会計へ</button>
+      </div>
+      <!-- 映像は readerBox の中で上下中央に置き、はみ出した分は上下を少し切る（読み取り枠は中央なので影響なし） -->
+      <div id="readerBox"><div id="reader" class="hide"></div></div>
+      <!-- シャッター式：カメラは映したまま、ボタンを押したときだけ1点追加する -->
+      <div id="camPanel" class="hide">
+        <div id="camSeen" class="camSeen">バーコードを枠の中に入れてください</div>
+        <button class="btn primary shutter" type="button" id="shutterBtn" onclick="shutter()">📸 この商品を1点追加</button>
+      </div>
     </div>
   </div>
 
@@ -1306,12 +1324,29 @@ function addShot(code) {
   onScan(code);
   // 連打で2点入らないよう、0.6秒はボタンを押せなくする
   const b = $('shutterBtn'); b.disabled = true; setTimeout(() => { b.disabled = false; }, 600);
-  $('camSeen').className = 'camSeen ok'; $('camSeen').textContent = '✓ 追加しました。次の商品を枠に入れてください';
+  const it = findItem(code);
+  $('camSeen').className = 'camSeen ok'; $('camSeen').textContent = '✓ 追加：' + (it ? it.name : code) + '　次の商品を枠に入れてください';
+  updateCamCount();
 }
 async function stopCamera() {
   if (!qr) return;
   await qr.stop().catch(() => {}); qr = null; seen = null; clearTimeout(waitShot); waitShot = null;
   $('reader').classList.add('hide'); $('camPanel').classList.add('hide'); $('camBtn').textContent = '📷 カメラで読み取る';
+  camFull(false);
+  renderAll();
+}
+// カメラを全画面にする／戻す
+function camFull(on) {
+  $('camWrap').classList.toggle('camFull', on);
+  $('camTop').classList.toggle('hide', !on);
+  document.body.classList.toggle('camOn', on);
+  if (on) updateCamCount(); else window.scrollTo(0, 0);
+}
+// 全画面の上に「今回の会計 ○点 ¥○」を出す（いくつ入れたか確認できるように）
+function updateCamCount() {
+  if (!$('camCount')) return;
+  const n = cart.reduce((a, c) => a + c.qty, 0), yen = cart.reduce((a, c) => a + effPrice(c) * c.qty, 0);
+  $('camCount').textContent = '今回の会計 ' + n + '点　¥' + yen.toLocaleString();
 }
 async function toggleCamera() {
   if (qr) { await stopCamera(); return; }
@@ -1319,6 +1354,7 @@ async function toggleCamera() {
     if (!window.Html5Qrcode) await loadScript(QR_LIB);
   } catch (e) { toast('カメラ機能を読み込めませんでした（初回は電波が必要です）'); return; }
   $('reader').classList.remove('hide');
+  camFull(true);   // 先に全画面にしてからカメラを起動（映像の幅が画面に合うように）
   qr = new Html5Qrcode('reader', { formatsToSupport: JAN_FORMATS(), experimentalFeatures: { useBarCodeDetectorIfSupported: true }, verbose: false });
   const opened = () => {
     $('camBtn').textContent = '⏹ カメラを止める';
@@ -1342,7 +1378,7 @@ async function toggleCamera() {
     try {
       await qr.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 280, height: 140 } }, camDetected);
       opened();
-    } catch (e2) { toast('カメラを起動できませんでした：' + e2); qr = null; $('reader').classList.add('hide'); }
+    } catch (e2) { toast('カメラを起動できませんでした：' + e2); qr = null; $('reader').classList.add('hide'); camFull(false); }
   }
 }
 

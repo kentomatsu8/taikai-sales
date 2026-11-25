@@ -3,7 +3,7 @@
  * ・電波があるときは最新版を取りに行く（3秒で返事がなければ保存版を使う）
  * ・シート（script.google.com）との通信には手を出さない
  */
-const CACHE = 'taikai-v15';
+const CACHE = 'taikai-v16';
 const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 const QR_LIB = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
 
