@@ -167,8 +167,12 @@ nav button.on{color:var(--blue);font-weight:700}
       <button class="btn primary" type="submit">追加</button>
     </form>
     <div class="row" style="margin-top:8px">
-      <button class="btn grow" type="button" onclick="toggleCamera()" id="camBtn">📷 カメラで読み取る</button>
+      <button class="btn grow" type="button" onclick="$('photoInput').click()" id="photoBtn">📸 写真を撮って読み取る</button>
+      <button class="btn grow" type="button" onclick="toggleCamera()" id="camBtn">🎥 連続で読み取る</button>
     </div>
+    <!-- 写真モード：スマホ標準のカメラが開く（ピントが合いやすく、読み取りが確実） -->
+    <input id="photoInput" type="file" accept="image/*" capture="environment" class="hide" onchange="onPhoto(this)">
+    <div class="muted" id="photoMsg" style="margin-top:6px;font-size:12px"></div>
     <div id="reader" class="hide"></div>
   </div>
 
@@ -1240,23 +1244,126 @@ function loadScript(src) {
   return new Promise((ok, ng) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = ng; document.head.appendChild(s); });
 }
 async function toggleCamera() {
-  if (qr) { await qr.stop().catch(() => {}); qr = null; $('reader').classList.add('hide'); $('camBtn').textContent = '📷 カメラで読み取る'; return; }
+  if (qr) { await qr.stop().catch(() => {}); qr = null; $('reader').classList.add('hide'); $('camBtn').textContent = '🎥 連続で読み取る'; return; }
   try {
     if (!window.Html5Qrcode) await loadScript(QR_LIB);
   } catch (e) { toast('カメラ機能を読み込めませんでした（初回は電波が必要です）'); return; }
   $('reader').classList.remove('hide');
-  qr = new Html5Qrcode('reader');
+  qr = new Html5Qrcode('reader', { formatsToSupport: JAN_FORMATS(), experimentalFeatures: { useBarCodeDetectorIfSupported: true }, verbose: false });
   let last = '', lastAt = 0;
+  const onText = text => {
+    // 同じバーコードを連続で拾わないように1.5秒あける
+    if (text === last && Date.now() - lastAt < 1500) return;
+    last = text; lastAt = Date.now();
+    if (navigator.vibrate) navigator.vibrate(80);
+    onScan(text);
+  };
   try {
-    await qr.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 260, height: 120 } }, text => {
-      // 同じバーコードを連続で拾わないように1.5秒あける
-      if (text === last && Date.now() - lastAt < 1500) return;
-      last = text; lastAt = Date.now();
-      if (navigator.vibrate) navigator.vibrate(80);
-      onScan(text);
-    });
+    await qr.start(
+      // 背面カメラ・高めの画質（細いバーコードの線を拾いやすくする）
+      { facingMode: 'environment' },
+      {
+        fps: 15,
+        // 読み取り枠：画面幅の9割×横長（JANコードの形に合わせる）
+        qrbox: (w, h) => ({ width: Math.floor(w * 0.9), height: Math.floor(Math.min(h * 0.45, w * 0.45)) }),
+        videoConstraints: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 }, advanced: [{ focusMode: 'continuous' }] }
+      },
+      onText);
     $('camBtn').textContent = '⏹ カメラを止める';
-  } catch (e) { toast('カメラを起動できませんでした：' + e); qr = null; $('reader').classList.add('hide'); }
+  } catch (e) {
+    // 高画質設定に対応していない端末は、前のシンプルな設定でもう一度起動する
+    try {
+      await qr.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 280, height: 140 } }, onText);
+      $('camBtn').textContent = '⏹ カメラを止める';
+    } catch (e2) { toast('カメラを起動できませんでした：' + e2); qr = null; $('reader').classList.add('hide'); }
+  }
+}
+
+/* ================================================================
+ *  写真で読み取る
+ *  ・スマホ標準カメラで撮った写真から JAN コードを探す
+ *  ・使える端末（Androidなど）はスマホ内蔵の読み取り機能、
+ *    使えない端末（iPhoneなど）は読み取りライブラリで解析
+ *  ・写真が大きすぎると読めないことがあるので、大きさを変えて数回試す
+ * ================================================================ */
+// 読み取り対象のバーコードの種類（JAN13・JAN8・UPC・CODE128）
+function JAN_FORMATS() {
+  const F = window.Html5QrcodeSupportedFormats; if (!F) return undefined;
+  return [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128];
+}
+// 画像を指定の長さ（長い辺）に縮めたキャンバスを作る。rot=90 で90度回転、enh=true でくっきり加工
+function drawScaled(img, maxSide, rot, enh) {
+  const k = Math.min(1, maxSide / Math.max(img.width, img.height));
+  const w = Math.round(img.width * k), h = Math.round(img.height * k);
+  const c = document.createElement('canvas');
+  if (rot) { c.width = h; c.height = w; } else { c.width = w; c.height = h; }
+  const g = c.getContext('2d');
+  if (rot) { g.translate(h, 0); g.rotate(Math.PI / 2); }
+  g.drawImage(img, 0, 0, w, h);
+  if (enh) enhance(c);
+  return c;
+}
+// 暗い・ぼやけた写真用：白黒にしてコントラストを強める（明るさの下2%を黒、上2%を白に引き伸ばす）
+function enhance(c) {
+  const g = c.getContext('2d'), d = g.getImageData(0, 0, c.width, c.height), a = d.data, n = a.length / 4;
+  const hist = new Array(256).fill(0), gray = new Uint8Array(n);
+  for (let i = 0; i < n; i++) { const v = (a[i * 4] * 3 + a[i * 4 + 1] * 6 + a[i * 4 + 2]) / 10 | 0; gray[i] = v; hist[v]++; }
+  let lo = 0, hi = 255, acc = 0;
+  for (; lo < 255; lo++) { acc += hist[lo]; if (acc > n * 0.02) break; }
+  acc = 0; for (; hi > 0; hi--) { acc += hist[hi]; if (acc > n * 0.02) break; }
+  const k = 255 / Math.max(1, hi - lo);
+  for (let i = 0; i < n; i++) { const v = Math.max(0, Math.min(255, (gray[i] - lo) * k)); a[i * 4] = a[i * 4 + 1] = a[i * 4 + 2] = v; }
+  g.putImageData(d, 0, 0);
+}
+async function decodeCanvas(c) {
+  // ① スマホ内蔵の読み取り機能（あれば一番確実）
+  if ('BarcodeDetector' in window) {
+    try {
+      const det = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'] });
+      const r = await det.detect(c);
+      if (r && r.length) return r[0].rawValue;
+    } catch (_) { /* 使えない端末は②へ */ }
+  }
+  // ② 読み取りライブラリ
+  const blob = await new Promise(ok => c.toBlob(ok, 'image/jpeg', 0.92));
+  const file = new File([blob], 'scan.jpg', { type: 'image/jpeg' });
+  try { return await photoReader().scanFile(file, false); } catch (_) { return ''; }
+}
+let _photoQr = null;
+function photoReader() {
+  if (!_photoQr) {
+    let box = document.getElementById('photoWork');
+    if (!box) { box = document.createElement('div'); box.id = 'photoWork'; box.style.display = 'none'; document.body.appendChild(box); }
+    _photoQr = new Html5Qrcode('photoWork', { formatsToSupport: JAN_FORMATS(), verbose: false });
+  }
+  return _photoQr;
+}
+async function onPhoto(inp) {
+  const f = inp.files && inp.files[0]; inp.value = '';   // 同じ写真を続けて選べるように空にする
+  if (!f) return;
+  const msg = $('photoMsg'); msg.textContent = '読み取り中…';
+  try {
+    if (!window.Html5Qrcode) await loadScript(QR_LIB);
+  } catch (e) { msg.textContent = ''; toast('読み取り機能を読み込めませんでした（初回は電波が必要です）'); return; }
+  // 写真を画像として読み込む
+  const url = URL.createObjectURL(f);
+  const img = await new Promise((ok, ng) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ng; i.src = url; }).catch(() => null);
+  URL.revokeObjectURL(url);
+  if (!img) { msg.textContent = ''; toast('写真を読み込めませんでした'); return; }
+  // 大きさ・向きを変えながら試す（多くは1回目で読める）
+  let code = '';
+  for (const [side, rot, enh] of [[1600, 0], [1000, 0], [1600, 0, 1], [1000, 0, 1], [700, 0, 1], [2400, 0], [1600, 90], [1000, 90], [1000, 90, 1]]) {
+    code = String(await decodeCanvas(drawScaled(img, side, rot, enh)) || '').trim();
+    if (code) break;
+  }
+  if (code) {
+    msg.textContent = '';
+    if (navigator.vibrate) navigator.vibrate(80);
+    onScan(code);
+  } else {
+    msg.textContent = '読み取れませんでした。バーコードを画面いっぱい・まっすぐ・明るい場所で撮り直すか、数字を手入力してください。';
+    toast('バーコードが見つかりませんでした');
+  }
 }
 
 /* ================================================================
