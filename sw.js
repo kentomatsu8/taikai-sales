@@ -3,14 +3,17 @@
  * ・電波があるときは最新版を取りに行く（3秒で返事がなければ保存版を使う）
  * ・シート（script.google.com）との通信には手を出さない
  */
-const CACHE = 'taikai-v16';
+const CACHE = 'taikai-v17';
 const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
+// 高速カメラ読み取り用（電波が無くても動くよう、最初にスマホへ保存しておく）
+const FAST_LIBS = ['./lib/barcode-detector-3.2.2-polyfill.js', './lib/zxing_reader-3.1.3.wasm'];
 const QR_LIB = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
 
 self.addEventListener('install', e => {
   e.waitUntil((async () => {
     const c = await caches.open(CACHE);
     await c.addAll(ASSETS);
+    try { await c.addAll(FAST_LIBS); } catch (_) { /* 失敗しても本体は動く（カメラは従来方式になる） */ }
     try { await c.put(QR_LIB, await fetch(QR_LIB, { mode: 'no-cors' })); } catch (_) { /* カメラ用。失敗しても本体は動く */ }
     self.skipWaiting();
   })());

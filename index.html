@@ -133,6 +133,12 @@ nav button.on{color:var(--blue);font-weight:700}
 .camCount{flex:1;color:#fff;font-weight:700;font-size:15px}
 .camClose{padding:10px 12px;background:#2a3a52;color:#fff}
 body.camOn{overflow:hidden}
+/* 高速方式の映像と読み取り枠（枠の中だけを読む） */
+.fcam{position:relative;width:100%;line-height:0}
+.fcam video{width:100%;height:auto;display:block}
+.fcam .fbox{position:absolute;left:5%;width:90%;top:50%;transform:translateY(-50%);border:3px solid #fff;border-radius:8px;
+  box-shadow:0 0 0 2000px rgba(0,0,0,.35)}
+.fcam .fbox::after{content:'';position:absolute;left:4%;right:4%;top:50%;border-top:2px solid rgba(255,70,70,.85)}
 </style>
 </head>
 <body>
@@ -358,6 +364,18 @@ body.camOn{overflow:hidden}
   </div>
 
   <div class="card">
+    <h2>カメラの読み取り方式</h2>
+    <div class="pay" style="margin-top:0">
+      <button id="cFast" onclick="setCamEngine('fast')">高速（おすすめ）</button>
+      <button id="cOld" onclick="setCamEngine('old')">従来</button>
+    </div>
+    <div class="sub">
+      高速：カメラの映像を細かいまま読み取るので、少し離れていても・少しぼやけていても読めます。<br>
+      従来：11/27以前と同じ読み取り方です。高速でカメラが映らない・読めないときは、こちらに切り替えてください。
+    </div>
+  </div>
+
+  <div class="card">
     <h2>スタッフ用リンク（管理者用）</h2>
     <div class="sub">URLとパスコードを保存したあとに押すと、受付中の大会ごとにスタッフ用リンクができます（別会場の日は、その会場の大会のリンクを送ります）。スタッフはリンクを開いて名前を入れるだけで始められます。<b>パスコード入りなので、販売スタッフ以外には送らないでください。</b></div>
     <button class="btn primary" style="margin-top:8px" onclick="makeStaffLinks()">スタッフ用リンクを作る</button>
@@ -381,7 +399,7 @@ body.camOn{overflow:hidden}
     <button class="btn danger big" style="margin-top:8px" onclick="resetAll()">この端末のデータを全部消す</button>
     <div class="sub" style="margin-top:6px">未送信が残っているときは消せません。</div>
   </div>
-  <div class="sub" style="text-align:center">大会販売システム v2.1</div>
+  <div class="sub" style="text-align:center">大会販売システム v2.5</div>
 </section>
 </div>
 
@@ -535,9 +553,14 @@ function addToCart(p) {
   renderCart();
   focusScan();
 }
+// 最後に読んだ商品（カードに出している商品）。カートから消えたらカードも消すために覚えておく
+let lastHit = null;
 function showHit(item) {
-  const rem = remainOf(item) - cart.filter(c => c.barcode === item.barcode).reduce((a, c) => a + c.qty, 0);
+  lastHit = item;
+  const inCart = cart.filter(c => c.barcode === item.barcode).reduce((a, c) => a + c.qty, 0);
+  const rem = remainOf(item) - inCart;
   $('hitBox').innerHTML = `<div class="card hit">
+    <div class="sub" style="color:var(--blue);font-weight:700">✓ 今回の会計に入っています（${inCart}点）</div>
     <div class="nm">${esc(item.name)}</div>
     <div class="sub">${esc(item.code)}　JAN ${esc(item.barcode)}</div>
     <div class="plan yen"><small>販売予定価格</small>${yen(item.plan)}</div>
@@ -545,6 +568,7 @@ function showHit(item) {
   </div>`;
 }
 function showMiss(bc, msg, canAdd) {
+  lastHit = null;
   $('hitBox').innerHTML = `<div class="card miss">
     <div style="font-weight:700;color:var(--red)">${esc(msg)}</div>
     <div class="sub">バーコード：${esc(bc)}</div>
@@ -666,7 +690,16 @@ function renderCampaign(baseTotal) {
 // 予定価格から変えたのに備考が無い行（会計を止める）
 const needNote = c => c.price !== c.plan && !c.note.trim();
 
+// 「最後に読んだ商品」カードをカートの中身に合わせる
+// ・その商品をカートから削除した → カードを消す（今回の会計に入っているように見えないように）
+// ・数量を変えた → 「○点」と「会計後の残り」を更新
+function syncHit() {
+  if (!lastHit) return;
+  if (!cart.some(c => c.barcode === lastHit.barcode)) { lastHit = null; $('hitBox').innerHTML = ''; return; }
+  showHit(lastHit);
+}
 function renderCart() {
+  syncHit();
   const box = $('cart');
   if (!cart.length) {
     box.innerHTML = '<div class="sub">商品を読み取るとここに並びます。</div>';
@@ -1241,6 +1274,8 @@ function renderSettingsInfo() {
   $('iErr').innerHTML = netError ? `<div class="err">${esc(netError)}</div>` : '';
   $('mAuto').classList.toggle('on', S.settings.mode !== 'offline');
   $('mOff').classList.toggle('on', S.settings.mode === 'offline');
+  $('cFast').classList.toggle('on', S.settings.camEngine !== 'old');
+  $('cOld').classList.toggle('on', S.settings.camEngine === 'old');
 }
 function renderAll() {
   renderEventPick();
@@ -1330,7 +1365,7 @@ function addShot(code) {
 }
 async function stopCamera() {
   if (!qr) return;
-  await qr.stop().catch(() => {}); qr = null; seen = null; clearTimeout(waitShot); waitShot = null;
+  await qr.stop().catch(() => {}); qr = null; $('reader').innerHTML = ''; seen = null; clearTimeout(waitShot); waitShot = null;
   $('reader').classList.add('hide'); $('camPanel').classList.add('hide'); $('camBtn').textContent = '📷 カメラで読み取る';
   camFull(false);
   renderAll();
@@ -1350,6 +1385,10 @@ function updateCamCount() {
 }
 async function toggleCamera() {
   if (qr) { await stopCamera(); return; }
+  if (S.settings.camEngine !== 'old') {
+    if (await startFastCam()) return;   // 高速方式で起動できた
+    toast('高速読み取りを起動できなかったため、従来の方式で起動します', 3000);
+  }
   try {
     if (!window.Html5Qrcode) await loadScript(QR_LIB);
   } catch (e) { toast('カメラ機能を読み込めませんでした（初回は電波が必要です）'); return; }
@@ -1380,6 +1419,127 @@ async function toggleCamera() {
       opened();
     } catch (e2) { toast('カメラを起動できませんでした：' + e2); qr = null; $('reader').classList.add('hide'); camFull(false); }
   }
+}
+
+/* ================================================================
+ *  高速読み取り（11/27〜）
+ *  従来方式（html5-qrcode）は、映像を「画面の枠の大きさ（スマホだと横350px程度）」まで
+ *  縮めてから読んでいたため、バーコードの細い線がつぶれて、かなり近づけないと読めなかった。
+ *  高速方式は、カメラの映像を細かいまま（横最大1280px）切り出して読む。
+ *  ・読み取りエンジン：Androidはスマホ内蔵の読み取り機能、iPhoneは同じ仕組みの読み取りプログラム
+ *    （lib/ フォルダ。アプリと一緒にスマホに保存されるので電波が無くても動く）
+ *  ・読めた番号は従来と同じ camDetected() に渡す（チェックデジット確認・2回一致・シャッター式はそのまま）
+ *  ・起動できなかったら従来方式に自動で切り替わる。設定画面で「従来」に固定もできる
+ * ================================================================ */
+const BD_LIB = './lib/barcode-detector-3.2.2-polyfill.js';
+const BD_WASM = './lib/zxing_reader-3.1.3.wasm';
+let detector = null;
+// 読み取りエンジンを用意する（内蔵があれば内蔵、なければ読み取りプログラムを読み込む）
+async function getDetector() {
+  if (detector) return detector;
+  const fmts = ['ean_13', 'ean_8', 'upc_a'];
+  if ('BarcodeDetector' in window && !window.BarcodeDetectionAPI) {
+    try {
+      const sup = await BarcodeDetector.getSupportedFormats();
+      if (sup.includes('ean_13')) { detector = new BarcodeDetector({ formats: fmts.filter(f => sup.includes(f)) }); return detector; }
+    } catch (_) { /* 内蔵が使えない → 下で読み取りプログラムを使う */ }
+  }
+  if (!window.BarcodeDetectionAPI) {
+    // 内蔵の BarcodeDetector があっても上で使えなかった場合は、読み取りプログラムで上書きする
+    try { delete window.BarcodeDetector; } catch (_) {}
+    await loadScript(BD_LIB);
+  }
+  const api = window.BarcodeDetectionAPI;
+  const wasmUrl = new URL(BD_WASM, location.href).href;
+  api.setZXingModuleOverrides({ locateFile: (path, prefix) => path.endsWith('.wasm') ? wasmUrl : prefix + path });
+  await api.prepareZXingModule({ fireImmediately: true });
+  const d = new BarcodeDetector({ formats: fmts });
+  // 試しに1回読ませて、ちゃんと動くか確かめる（ここで失敗したら従来方式へ）
+  const c = document.createElement('canvas'); c.width = 32; c.height = 32;
+  await d.detect(c);
+  detector = d; return detector;
+}
+
+let fast = null;   // 高速方式で動いているときの情報 { stream, video, canvas, ctx, run }
+async function startFastCam() {
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return false;
+    $('reader').classList.remove('hide');
+    camFull(true);
+    $('camSeen').className = 'camSeen'; $('camSeen').textContent = 'カメラを準備しています…';
+    $('camPanel').classList.remove('hide'); $('shutterBtn').disabled = true;
+    const [d, stream] = await Promise.all([
+      getDetector(),
+      navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 }, advanced: [{ focusMode: 'continuous' }] } })
+        .catch(() => navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: 'environment' } }))
+    ]);
+    // 映像と枠を表示
+    $('reader').innerHTML = '<div class="fcam"><video playsinline muted autoplay></video><div class="fbox"></div></div>';
+    const video = $('reader').querySelector('video');
+    video.srcObject = stream;
+    await video.play().catch(() => {});
+    // 映像のサイズが分かるまで待つ（最大3秒）
+    for (let i = 0; i < 30 && !video.videoWidth; i++) await new Promise(r => setTimeout(r, 100));
+    if (!video.videoWidth) throw new Error('映像が届きません');
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    fast = { stream, video, canvas, ctx, run: true };
+    // qr は「カメラが動いている」印として従来と共通で使う（stop() で高速方式を止める）
+    qr = { fast: true, stop: async () => stopFastCam() };
+    sizeFastBox();
+    $('camBtn').textContent = '⏹ カメラを止める';
+    $('shutterBtn').disabled = false;
+    $('camSeen').className = 'camSeen'; $('camSeen').textContent = 'バーコードを枠の中に入れてください';
+    fastLoop(d);
+    return true;
+  } catch (e) {
+    console.warn('高速読み取りを起動できません', e);
+    stopFastCam();
+    qr = null; $('reader').innerHTML = ''; $('reader').classList.add('hide'); $('camPanel').classList.add('hide'); camFull(false);
+    return false;
+  }
+}
+function stopFastCam() {
+  if (!fast) return;
+  fast.run = false;
+  try { fast.stream.getTracks().forEach(t => t.stop()); } catch (_) {}
+  fast = null;
+}
+// 読み取り枠の高さ：従来と同じ「幅の45%（映像の高さの45%まで）」
+function fastBoxRatio(vw, vh) { return Math.min(vh * 0.45, vw * 0.45) / vh; }
+function sizeFastBox() {
+  if (!fast) return;
+  const box = $('reader').querySelector('.fbox');
+  if (box) box.style.height = (fastBoxRatio(fast.video.videoWidth, fast.video.videoHeight) * 100) + '%';
+}
+// 読み取りを繰り返す（1回読み終わったらすぐ次の映像を読む）
+async function fastLoop(d) {
+  while (fast && fast.run) {
+    const f = fast, v = f.video;
+    if (v.readyState >= 2 && v.videoWidth) {
+      // 枠の部分だけを映像から切り出す（映像の細かさのまま。横1280pxを超える分だけ縮める）
+      const vw = v.videoWidth, vh = v.videoHeight;
+      const sw = Math.round(vw * 0.9), sh = Math.round(vh * fastBoxRatio(vw, vh));
+      const sx = Math.round((vw - sw) / 2), sy = Math.round((vh - sh) / 2);
+      const k = Math.min(1, 1280 / sw);
+      const cw = Math.round(sw * k), ch = Math.round(sh * k);
+      if (f.canvas.width !== cw) f.canvas.width = cw;
+      if (f.canvas.height !== ch) f.canvas.height = ch;
+      f.ctx.drawImage(v, sx, sy, sw, sh, 0, 0, cw, ch);
+      try {
+        const res = await d.detect(f.canvas);
+        for (const r of res) camDetected(r.rawValue);
+      } catch (e) { console.warn('読み取りエラー', e); await new Promise(r => setTimeout(r, 200)); }
+      sizeFastBox();
+    }
+    // 画面の更新を待ってから次へ（スマホが熱くなりすぎないよう、最短でも約30ms空ける）
+    await new Promise(r => setTimeout(r, 30));
+  }
+}
+function setCamEngine(m) {
+  S.settings.camEngine = m; save();
+  toast(m === 'old' ? 'カメラを「従来」の読み取り方式にしました' : 'カメラを「高速」の読み取り方式にしました');
+  renderSettingsInfo();
 }
 
 /* ================================================================
