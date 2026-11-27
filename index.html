@@ -364,18 +364,6 @@ body.camOn{overflow:hidden}
   </div>
 
   <div class="card">
-    <h2>カメラの読み取り方式</h2>
-    <div class="pay" style="margin-top:0">
-      <button id="cFast" onclick="setCamEngine('fast')">高速（おすすめ）</button>
-      <button id="cOld" onclick="setCamEngine('old')">従来</button>
-    </div>
-    <div class="sub">
-      高速：カメラの映像を細かいまま読み取るので、少し離れていても・少しぼやけていても読めます。<br>
-      従来：11/27以前と同じ読み取り方です。高速でカメラが映らない・読めないときは、こちらに切り替えてください。
-    </div>
-  </div>
-
-  <div class="card">
     <h2>スタッフ用リンク（管理者用）</h2>
     <div class="sub">URLとパスコードを保存したあとに押すと、受付中の大会ごとにスタッフ用リンクができます（別会場の日は、その会場の大会のリンクを送ります）。スタッフはリンクを開いて名前を入れるだけで始められます。<b>パスコード入りなので、販売スタッフ以外には送らないでください。</b></div>
     <button class="btn primary" style="margin-top:8px" onclick="makeStaffLinks()">スタッフ用リンクを作る</button>
@@ -399,7 +387,7 @@ body.camOn{overflow:hidden}
     <button class="btn danger big" style="margin-top:8px" onclick="resetAll()">この端末のデータを全部消す</button>
     <div class="sub" style="margin-top:6px">未送信が残っているときは消せません。</div>
   </div>
-  <div class="sub" style="text-align:center">大会販売システム v2.5</div>
+  <div class="sub" style="text-align:center">大会販売システム v2.6</div>
 </section>
 </div>
 
@@ -1274,8 +1262,6 @@ function renderSettingsInfo() {
   $('iErr').innerHTML = netError ? `<div class="err">${esc(netError)}</div>` : '';
   $('mAuto').classList.toggle('on', S.settings.mode !== 'offline');
   $('mOff').classList.toggle('on', S.settings.mode === 'offline');
-  $('cFast').classList.toggle('on', S.settings.camEngine !== 'old');
-  $('cOld').classList.toggle('on', S.settings.camEngine === 'old');
 }
 function renderAll() {
   renderEventPick();
@@ -1385,10 +1371,9 @@ function updateCamCount() {
 }
 async function toggleCamera() {
   if (qr) { await stopCamera(); return; }
-  if (S.settings.camEngine !== 'old') {
-    if (await startFastCam()) return;   // 高速方式で起動できた
-    toast('高速読み取りを起動できなかったため、従来の方式で起動します', 3000);
-  }
+  // まず高速方式。スマホが対応していないなど起動できないときだけ、従来方式で起動する（予備）
+  if (await startFastCam()) return;
+  toast('高速読み取りを起動できなかったため、従来の方式で起動します', 3000);
   try {
     if (!window.Html5Qrcode) await loadScript(QR_LIB);
   } catch (e) { toast('カメラ機能を読み込めませんでした（初回は電波が必要です）'); return; }
@@ -1429,7 +1414,7 @@ async function toggleCamera() {
  *  ・読み取りエンジン：Androidはスマホ内蔵の読み取り機能、iPhoneは同じ仕組みの読み取りプログラム
  *    （lib/ フォルダ。アプリと一緒にスマホに保存されるので電波が無くても動く）
  *  ・読めた番号は従来と同じ camDetected() に渡す（チェックデジット確認・2回一致・シャッター式はそのまま）
- *  ・起動できなかったら従来方式に自動で切り替わる。設定画面で「従来」に固定もできる
+ *  ・起動できなかったら従来方式に自動で切り替わる（予備として残している）
  * ================================================================ */
 const BD_LIB = './lib/barcode-detector-3.2.2-polyfill.js';
 const BD_WASM = './lib/zxing_reader-3.1.3.wasm';
@@ -1535,11 +1520,6 @@ async function fastLoop(d) {
     // 画面の更新を待ってから次へ（スマホが熱くなりすぎないよう、最短でも約30ms空ける）
     await new Promise(r => setTimeout(r, 30));
   }
-}
-function setCamEngine(m) {
-  S.settings.camEngine = m; save();
-  toast(m === 'old' ? 'カメラを「従来」の読み取り方式にしました' : 'カメラを「高速」の読み取り方式にしました');
-  renderSettingsInfo();
 }
 
 /* ================================================================
