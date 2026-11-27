@@ -293,6 +293,7 @@ body.camOn{overflow:hidden}
     <h2>💴 現金の照合</h2>
     <label class="field"><span>釣銭準備金（最初にレジに入れたお金）</span>
       <input id="float" inputmode="numeric" oninput="renderSettle()" placeholder="例：30000"></label>
+    <div id="floatNote" class="sub hide" style="margin-top:-4px">管理者が設定した金額です（シート「イベント」N列）。変更は管理者に連絡してください。</div>
     <div class="sub" style="margin:6px 0">数えた枚数を入れると自動で合計します（合計を直接入れてもOK）。</div>
     <div class="denoms" id="denoms"></div>
     <label class="field"><span>数えた現金の合計</span>
@@ -387,7 +388,7 @@ body.camOn{overflow:hidden}
     <button class="btn danger big" style="margin-top:8px" onclick="resetAll()">この端末のデータを全部消す</button>
     <div class="sub" style="margin-top:6px">未送信が残っているときは消せません。</div>
   </div>
-  <div class="sub" style="text-align:center">大会販売システム v2.6</div>
+  <div class="sub" style="text-align:center">大会販売システム v2.7</div>
 </section>
 </div>
 
@@ -1036,9 +1037,14 @@ function renderSettle() {
   $('xCash').textContent = yen(f.cash); $('xAir').textContent = yen(f.air);
   $('xDisc').textContent = yen(f.disc); $('xTotal').textContent = yen(f.cash + f.air);
 
-  // 釣銭準備金はイベントごとに覚えておく
-  const flEl = $('float');
-  if (document.activeElement !== flEl && flEl.dataset.ev !== S.settings.eventId) {
+  // 釣銭準備金：管理者がシート「イベント」N列に入れていれば、その金額を表示して変更できないようにする（11/27）
+  // N列が空なら、従来どおりスタッフが入力（イベントごとにスマホに保存）
+  const flEl = $('float'), ev = curEvent(), adminFloat = ev && Number(ev.float) > 0 ? Number(ev.float) : 0;
+  flEl.readOnly = !!adminFloat;
+  flEl.style.background = adminFloat ? '#eef2f8' : '';
+  $('floatNote').classList.toggle('hide', !adminFloat);
+  if (adminFloat) { flEl.value = adminFloat; flEl.dataset.ev = S.settings.eventId; }
+  else if (document.activeElement !== flEl && flEl.dataset.ev !== S.settings.eventId) {
     flEl.value = S.settings.floats[S.settings.eventId] ?? ''; flEl.dataset.ev = S.settings.eventId;
   } else { S.settings.floats[S.settings.eventId] = flEl.value; save(); }
 
